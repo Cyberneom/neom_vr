@@ -1,0 +1,56 @@
+name: neom_generator
+description: Neom Generator for Cyberneom.
+version: 1.0.0
+homepage: https://github.com/Cyberneom/neom_generator
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  neom_commons:
+    git:
+      url: https://github.com/Cyberneom/neom_commons.git
+
+  sleek_circular_slider: ^2.0.1
+
+  #Audio Processing Experimental
+  surround_sound: ^0.3.2
+
+  #First we need permission.RECORD_AUDIO and Privacy Policy
+  #sound_stream: 0.3.0s
+  #noise_meter: ^3.0.2
+  #Tonic is a Flutter-compatible Dart package that models components of music theory.
+  #Used for Neom Harmony
+  #tonic: ^0.2.4
+  #AudioProcessing
+  #flutter_fft: ^1.0.2+6
+
+  #Virtual Reality Experimental
+  flutter_custom_tabs: 1.0.4
+  #  vr_player: ^0.2.0
+  #  panorama: ^0.4.1
+  #  video_360: ^0.0.8
+  #  split_view: ^3.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+dependency_overrides:
+  neom_commons:
+    path: ../neom_commons
+  neom_frequencies:
+    path: ../neom_frequencies
+  intl: 0.18.1
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
