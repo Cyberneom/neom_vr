@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:neom_generator/neom_generator/neom_generator_controller.dart';
 import 'package:neom_generator/neom_generator/utils.constants/neom_generator_constants.dart';
 import 'package:neom_generator/neom_generator/utils.constants/neom_slider_constants.dart';
@@ -91,7 +93,14 @@ class NeomGeneratorPage extends StatelessWidget {
                                             child: InkWell(
                                               child: IconButton(
                                                   onPressed: ()  async {
-                                                    await _.playStopPreview();
+                                                    if(Platform.isAndroid) {
+                                                      await _.playStopPreview();
+                                                    } else {
+                                                      AppUtilities.showSnackBar(
+                                                        MessageTranslationConstants.underConstruction.tr,
+                                                        "${MessageTranslationConstants.featureAvailableSoon.tr} para iOS",
+                                                      );
+                                                    }
                                                   },
                                                   icon: Icon(FontAwesomeIcons.om, size: 60)
                                               ),
