@@ -8,7 +8,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:neom_commons/neom_commons.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
-import 'package:surround_sound/surround_sound.dart';
+import 'package:surround_frequency_generator/surround_frequency_generator.dart';
 import 'package:get/get.dart';
 import 'package:enum_to_string/enum_to_string.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';

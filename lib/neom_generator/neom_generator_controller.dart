@@ -18,7 +18,7 @@ import 'package:neom_commons/core/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_translation_constants.dart';
 import 'package:neom_commons/core/utils/enums/app_item_state.dart';
 import 'package:neom_frequencies/frequencies/ui/frequency_controller.dart';
-import 'package:surround_sound/surround_sound.dart';
+import 'package:surround_frequency_generator/surround_frequency_generator.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 

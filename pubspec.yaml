@@ -19,7 +19,7 @@ dependencies:
   sleek_circular_slider: ^2.0.1
 
   #Audio Processing Experimental
-  surround_sound: ^0.3.2
+  surround_frequency_generator: ^1.0.0
 
   #First we need permission.RECORD_AUDIO and Privacy Policy
   #sound_stream: 0.3.0s
@@ -47,7 +47,7 @@ dependency_overrides:
     path: ../neom_commons
   neom_frequencies:
     path: ../neom_frequencies
-  surround_sound:
+  surround_frequency_generator:
     path: ../surround_frequency_generator
   intl: 0.18.1
 
