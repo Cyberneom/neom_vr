@@ -20,7 +20,32 @@ class NeomGeneratorPage extends StatelessWidget {
     return GetBuilder<NeomGeneratorController>(
         id: AppPageIdConstants.generator,
         init: NeomGeneratorController(),
-    builder: (_) => Scaffold(
+    builder: (_) => WillPopScope(
+        onWillPop: () async {
+
+      try {
+        if(_.isPlaying) {
+          await _.playStopPreview();
+        }
+        _.soundController.removeListener(() { });
+        _.soundController.dispose();
+        _.soundController = SoundController();
+        if(Platform.isAndroid) {
+          await _.webViewAndroidController.clearCache(); // Clear the WebView cache (optional)
+          await _.webViewAndroidController.goBack();    // Dispose of the WebView
+        } else {
+          await _.webViewIosController.clearCache();
+          await _.webViewIosController.goBack();
+        }
+
+        _.isPlaying = false;
+      } catch (e) {
+        AppUtilities.logger.e(e.toString());
+      }
+
+      return true;
+    },
+    child: Scaffold(
       appBar: AppBarChild(title: AppTranslationConstants.frequencyGenerator.tr),
         body: Container(
         height: AppTheme.fullHeight(context),
@@ -29,7 +54,9 @@ class NeomGeneratorPage extends StatelessWidget {
         child: SingleChildScrollView(child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          SoundWidget(soundController: _.soundController,),
+          SoundWidget(soundController: _.soundController,
+              webViewAndroidController: _.webViewAndroidController,
+              webViewIosController: _.webViewIosController),
           AppTheme.heightSpace20,
           ValueListenableBuilder<AudioParam>(
             valueListenable: _.soundController,
@@ -80,7 +107,6 @@ class NeomGeneratorPage extends StatelessWidget {
                                       initialValue: freqValue.z,
                                       onChange: (double val) {
                                         _.setParameterPosition(x: freqValue.x, y: freqValue.y, z: val);
-                                        // _.soundController.setPosition(freqValue.x, freqValue.y, val);
                                       },
                                       innerWidget: (double val) {
                                         return Container(
@@ -93,14 +119,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                             child: InkWell(
                                               child: IconButton(
                                                   onPressed: ()  async {
-                                                    if(Platform.isAndroid) {
-                                                      await _.playStopPreview();
-                                                    } else {
-                                                      AppUtilities.showSnackBar(
-                                                        MessageTranslationConstants.underConstruction.tr,
-                                                        "${MessageTranslationConstants.featureAvailableSoon.tr} para iOS",
-                                                      );
-                                                    }
+                                                    await _.playStopPreview();
                                                   },
                                                   icon: Icon(FontAwesomeIcons.om, size: 60)
                                               ),
@@ -167,7 +186,7 @@ class NeomGeneratorPage extends StatelessWidget {
                         overflow: TextOverflow.ellipsis
                       ),
                       textAlign: TextAlign.justify,
-                      maxLines: 4,
+                      maxLines: 6,
 
                     ),
                     padding: EdgeInsets.symmetric(horizontal: 20),
@@ -347,7 +366,7 @@ class NeomGeneratorPage extends StatelessWidget {
       //     )
       // ],
       // )
-    ),
+    ),),
     );
   }
 }

@@ -47,6 +47,8 @@ dependency_overrides:
     path: ../neom_commons
   neom_frequencies:
     path: ../neom_frequencies
+  surround_sound:
+    path: ../surround_frequency_generator
   intl: 0.18.1
 
 # For information on the generic Dart part of this file, see the

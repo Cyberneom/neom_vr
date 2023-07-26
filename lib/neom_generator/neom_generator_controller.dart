@@ -19,6 +19,8 @@ import 'package:neom_commons/core/utils/constants/app_translation_constants.dart
 import 'package:neom_commons/core/utils/enums/app_item_state.dart';
 import 'package:neom_frequencies/frequencies/ui/frequency_controller.dart';
 import 'package:surround_sound/surround_sound.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 class NeomGeneratorController extends GetxController implements NeomGeneratorService {
 
@@ -29,6 +31,8 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
 
   late SoundController soundController;
+  WebViewController webViewAndroidController = WebViewController();
+  PlatformWebViewController webViewIosController = PlatformWebViewController(PlatformWebViewControllerCreationParams());
 
   AppProfile profile = AppProfile();
 
@@ -128,19 +132,11 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
   @override
   void dispose() {
-    super.dispose();
-    soundController.removeListener(() { });
-    soundController.dispose();
-    soundController = SoundController();
-    isPlaying = false;
-  }
+    // Dispose the WebViewController
 
-  @override
-  void onDelete() {
-    super.onDelete();
-    soundController.removeListener(() { });
-    soundController.dispose();
-    isPlaying = false;
+    super.dispose();
+    // Dispose of GetX resources
+    Get.delete<NeomGeneratorController>();
   }
 
   Future<void> settingChamber() async {
@@ -221,10 +217,12 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
     try {
       if(await soundController.isPlaying()) {
+        logger.d("Stopping Chamber Preset ${chamberPreset.name}");
         await soundController.stop();
         await soundController.init();
         changeControllerStatus(false);
       } else {
+        logger.d("Playing Chamber Preset ${chamberPreset.name}");
         settingChamber();
         await soundController.init();
         await soundController.play();
