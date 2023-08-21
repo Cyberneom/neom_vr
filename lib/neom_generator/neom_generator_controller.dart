@@ -279,10 +279,11 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
       if(frequencyPracticeState > 0) frequencyState = frequencyPracticeState;
 
       if(noItemlists) {
-        chamber.name = AppTranslationConstants.myFirstItemlistName.tr;
-        chamber.description = AppTranslationConstants.myFirstItemlistDesc.tr;
+        chamber.name = AppTranslationConstants.myFavItemlistName.tr;
+        chamber.description = AppTranslationConstants.myFavItemlistDesc.tr;
         chamber.imgUrl = AppFlavour.getAppLogoUrl();
-        chamber.id = await ItemlistFirestore().insert(profile.id, chamber);
+        chamber.ownerId = profile.id;
+        chamber.id = await ItemlistFirestore().insert(chamber);
       } else {
         if(chamber.id.isEmpty) chamber.id = chambers.values.first.id;
       }
