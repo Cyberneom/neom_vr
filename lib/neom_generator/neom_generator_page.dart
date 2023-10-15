@@ -1,5 +1,6 @@
 import 'dart:io';
 
+
 import 'package:neom_generator/neom_generator/neom_generator_controller.dart';
 import 'package:neom_generator/neom_generator/utils.constants/neom_generator_constants.dart';
 import 'package:neom_generator/neom_generator/utils.constants/neom_slider_constants.dart';
@@ -24,7 +25,7 @@ class NeomGeneratorPage extends StatelessWidget {
         onWillPop: () async {
 
       try {
-        if(_.isPlaying) {
+        if(_.isPlaying.value) {
           await _.playStopPreview();
         }
         _.soundController.removeListener(() { });
@@ -38,7 +39,7 @@ class NeomGeneratorPage extends StatelessWidget {
           await _.webViewIosController.goBack();
         }
 
-        _.isPlaying = false;
+        _.isPlaying.value = false;
       } catch (e) {
         AppUtilities.logger.e(e.toString());
       }
@@ -69,9 +70,8 @@ class NeomGeneratorPage extends StatelessWidget {
                     min: NeomGeneratorConstants.frequencyMin,
                     max: NeomGeneratorConstants.frequencyMax,
                     initialValue: _.chamberPreset.neomFrequency!.frequency,
-                    onChange: (double val) {
-                      _.setFrequency(val);
-                      // _.soundController.setFrequency(val);
+                    onChange: (double val) async {
+                      await _.setFrequency(val);
                     },
                     innerWidget: (double value) {
                       return Align(
@@ -113,7 +113,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                           padding: EdgeInsets.all(25),
                                           child: Ink(
                                             decoration: BoxDecoration(
-                                              color: _.isPlaying ? AppColor.deepDarkViolet : Colors.transparent,
+                                              color: _.isPlaying.value ? AppColor.deepDarkViolet : Colors.transparent,
                                               shape: BoxShape.circle,
                                             ),
                                             child: InkWell(
@@ -178,154 +178,174 @@ class NeomGeneratorPage extends StatelessWidget {
                       Text("${AppTranslationConstants.zAxis.tr}: ${_.soundController.value.z.toPrecision(2)}"),
                     ],
                   ),
-                  AppTheme.heightSpace10,
+                  AppTheme.heightSpace20,
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 30),
+                    child: _.existsInChamber && !_.isUpdate ? Container() : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: <Widget>[
+                        GestureDetector(
+                          child: buildIconActionChip(icon: Icon(Icons.remove), controllerFunction: () async {await _.decreaseFrequency();}),
+                          onLongPress: () {
+                            _.longPressed.value = true;
+                            _.timerDuration.value = NeomGeneratorConstants.recursiveCallTimerDuration;
+                            _.decreaseOnLongPress();
+                          },
+                          onLongPressUp: () => _.longPressed.value = false,
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                            backgroundColor: AppColor.bondiBlue,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),),
+                          child: Text(_.isUpdate ? AppTranslationConstants.savePreset.tr : _.existsInChamber ? AppTranslationConstants.removePreset.tr : AppTranslationConstants.savePreset.tr,
+                              style: TextStyle(
+                                  color: Colors.white,fontSize: 18.0,
+                                  fontWeight: FontWeight.bold
+                              )
+                          ),
+                          onPressed: () async {
+                            if(_.existsInChamber && !_.isUpdate) {
+                              await _.removePreset(context);
+                            } else {
+                              await Alert(
+                                context: context,
+                                style: AlertStyle(
+                                    backgroundColor: AppColor.main50,
+                                    titleStyle: const TextStyle(color: Colors.white)
+                                ),
+                                title: AppTranslationConstants.chamberPrefs.tr,
+                                content: Column(
+                                  children: <Widget>[
+                                    Obx(()=>
+                                        DropdownButton<String>(
+                                          items: AppItemState.values.map((AppItemState itemState) {
+                                            return DropdownMenuItem<String>(
+                                                value: itemState.name,
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                                  children: [
+                                                    Text(itemState.name.tr),
+                                                    itemState.value == 0 ? Container() : const Text(" - "),
+                                                    itemState.value == 0 ? Container() :
+                                                    RatingBar(
+                                                      initialRating: itemState.value.toDouble(),
+                                                      minRating: 1,
+                                                      ignoreGestures: true,
+                                                      direction: Axis.horizontal,
+                                                      allowHalfRating: false,
+                                                      itemCount: 5,
+                                                      ratingWidget: RatingWidget(
+                                                        full: CoreUtilities.ratingImage(AppAssets.heart),
+                                                        half: CoreUtilities.ratingImage(AppAssets.heartHalf),
+                                                        empty: CoreUtilities.ratingImage(AppAssets.heartBorder),
+                                                      ),
+                                                      itemPadding: const EdgeInsets.symmetric(horizontal: 1.0),
+                                                      itemSize: 10,
+                                                      onRatingUpdate: (rating) {
+                                                        _.logger.i("New Rating set to $rating");
+                                                      },
+                                                    ),
+                                                  ],
+                                                )
+                                            );
+                                          }).toList(),
+                                          onChanged: (String? newItemState) {
+                                            _.setFrequencyState(EnumToString.fromString(AppItemState.values, newItemState!) ?? AppItemState.noState);
+                                          },
+                                          value: CoreUtilities.getItemState(_.frequencyState).name,
+                                          alignment: Alignment.center,
+                                          icon: const Icon(Icons.arrow_downward),
+                                          iconSize: 15,
+                                          elevation: 15,
+                                          style: const TextStyle(color: Colors.white),
+                                          dropdownColor: AppColor.main75,
+                                          underline: Container(
+                                            height: 1,
+                                            color: Colors.grey,
+                                          ),
+                                        )
+                                    ),
+                                    _.chambers.length > 1 ? Obx(()=> DropdownButton<String>(
+                                      items: _.chambers.values.map((neomChamber) =>
+                                          DropdownMenuItem<String>(
+                                            value: neomChamber.id,
+                                            child: Center(
+                                                child: Text(
+                                                    neomChamber.name.length > AppConstants.maxItemlistNameLength
+                                                        ? "${neomChamber.name
+                                                        .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
+                                                        : neomChamber.name.capitalizeFirst!
+                                                )
+                                            ),
+                                          )
+                                      ).toList(),
+                                      onChanged: (String? selectedNeomChamber) {
+                                        _.setSelectedItemlist(selectedNeomChamber!);
+                                      },
+                                      value: _.chamber.id,
+                                      icon: const Icon(Icons.arrow_downward),
+                                      alignment: Alignment.center,
+                                      iconSize: 20,
+                                      elevation: 16,
+                                      style: const TextStyle(color: Colors.white),
+                                      dropdownColor: AppColor.main75,
+                                      underline: Container(
+                                        height: 1,
+                                        color: Colors.grey,
+                                      ),
+                                    )) : Container()
+                                  ],
+                                ),
+                                buttons: [
+                                  DialogButton(
+                                    color: AppColor.bondiBlue75,
+                                    child: Obx(()=>_.isLoading ? const Center(child: CircularProgressIndicator())
+                                        : Text(AppTranslationConstants.add.tr,
+                                    )),
+                                    onPressed: () async {
+                                      if(_.frequencyState > 0) {
+                                        await _.addPreset(context, frequencyPracticeState: _.frequencyState);
+                                        Navigator.pop(context);
+                                      } else {
+                                        Get.snackbar(
+                                            AppTranslationConstants.appItemPrefs.tr,
+                                            MessageTranslationConstants.selectItemStateMsg.tr,
+                                            snackPosition: SnackPosition.bottom
+                                        );
+                                      }
+                                    },
+                                  )],
+                              ).show();
+                            }
+                            Navigator.pop(context);
+                          },
+                        ),
+                        GestureDetector(
+                          child: buildIconActionChip(icon: Icon(Icons.add), controllerFunction: () async { await _.increaseFrequency();}),
+                          onLongPress: () {
+                            _.longPressed.value = true;
+                            _.timerDuration.value = NeomGeneratorConstants.recursiveCallTimerDuration;
+                            _.increaseOnLongPress();
+                          },
+                          onLongPressUp: () => _.longPressed.value = false,
+                        ),
+                      ],
+                    ),
+                  ),
                   Container(
                     child:Text(_.frequencyDescription.value,
                       style: TextStyle(
-                        fontSize: 12,
-                        overflow: TextOverflow.ellipsis
+                          fontSize: 12,
+                          overflow: TextOverflow.ellipsis
                       ),
                       textAlign: TextAlign.justify,
                       maxLines: 6,
-
                     ),
                     padding: EdgeInsets.symmetric(horizontal: 20),
                   ),
-                  SizedBox(height: 20),
-                  _.existsInChamber && !_.isUpdate ? Container() : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                          backgroundColor: AppColor.bondiBlue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),),
-                        child: Text(_.isUpdate ? AppTranslationConstants.savePreset.tr : _.existsInChamber ? AppTranslationConstants.removePreset.tr : AppTranslationConstants.savePreset.tr,
-                            style: TextStyle(
-                                color: Colors.white,fontSize: 18.0,
-                                fontWeight: FontWeight.bold
-                            )
-                        ),
-                        onPressed: () async {
-                          if(_.existsInChamber && !_.isUpdate) {
-                            await _.removePreset(context);
-                          } else {
-                            await Alert(
-                              context: context,
-                              style: AlertStyle(
-                                  backgroundColor: AppColor.main50,
-                                  titleStyle: const TextStyle(color: Colors.white)
-                              ),
-                              title: AppTranslationConstants.chamberPrefs.tr,
-                              content: Column(
-                                children: <Widget>[
-                                  Obx(()=>
-                                      DropdownButton<String>(
-                                        items: AppItemState.values.map((AppItemState itemState) {
-                                          return DropdownMenuItem<String>(
-                                              value: itemState.name,
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                                children: [
-                                                  Text(itemState.name.tr),
-                                                  itemState.value == 0 ? Container() : const Text(" - "),
-                                                  itemState.value == 0 ? Container() :
-                                                  RatingBar(
-                                                    initialRating: itemState.value.toDouble(),
-                                                    minRating: 1,
-                                                    ignoreGestures: true,
-                                                    direction: Axis.horizontal,
-                                                    allowHalfRating: false,
-                                                    itemCount: 5,
-                                                    ratingWidget: RatingWidget(
-                                                      full: CoreUtilities.ratingImage(AppAssets.heart),
-                                                      half: CoreUtilities.ratingImage(AppAssets.heartHalf),
-                                                      empty: CoreUtilities.ratingImage(AppAssets.heartBorder),
-                                                    ),
-                                                    itemPadding: const EdgeInsets.symmetric(horizontal: 1.0),
-                                                    itemSize: 10,
-                                                    onRatingUpdate: (rating) {
-                                                      _.logger.i("New Rating set to $rating");
-                                                    },
-                                                  ),
-                                                ],
-                                              )
-                                          );
-                                        }).toList(),
-                                        onChanged: (String? newItemState) {
-                                          _.setFrequencyState(EnumToString.fromString(AppItemState.values, newItemState!) ?? AppItemState.noState);
-                                        },
-                                        value: CoreUtilities.getItemState(_.frequencyState).name,
-                                        alignment: Alignment.center,
-                                        icon: const Icon(Icons.arrow_downward),
-                                        iconSize: 15,
-                                        elevation: 15,
-                                        style: const TextStyle(color: Colors.white),
-                                        dropdownColor: AppColor.main75,
-                                        underline: Container(
-                                          height: 1,
-                                          color: Colors.grey,
-                                        ),
-                                      )
-                                  ),
-                                  _.chambers.length > 1 ? Obx(()=> DropdownButton<String>(
-                                    items: _.chambers.values.map((neomChamber) =>
-                                        DropdownMenuItem<String>(
-                                          value: neomChamber.id,
-                                          child: Center(
-                                              child: Text(
-                                                  neomChamber.name.length > AppConstants.maxItemlistNameLength
-                                                      ? "${neomChamber.name
-                                                      .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
-                                                      : neomChamber.name.capitalizeFirst!
-                                              )
-                                          ),
-                                        )
-                                    ).toList(),
-                                    onChanged: (String? selectedNeomChamber) {
-                                      _.setSelectedItemlist(selectedNeomChamber!);
-                                    },
-                                    value: _.chamber.id,
-                                    icon: const Icon(Icons.arrow_downward),
-                                    alignment: Alignment.center,
-                                    iconSize: 20,
-                                    elevation: 16,
-                                    style: const TextStyle(color: Colors.white),
-                                    dropdownColor: AppColor.main75,
-                                    underline: Container(
-                                      height: 1,
-                                      color: Colors.grey,
-                                    ),
-                                  )) : Container()
-                                ],
-                              ),
-                              buttons: [
-                                DialogButton(
-                                  color: AppColor.bondiBlue75,
-                                  child: Obx(()=>_.isLoading ? const Center(child: CircularProgressIndicator())
-                                      : Text(AppTranslationConstants.add.tr,
-                                  )),
-                                  onPressed: () async {
-                                    if(_.frequencyState > 0) {
-                                      await _.addPreset(context, frequencyPracticeState: _.frequencyState);
-                                      Navigator.pop(context);
-                                    } else {
-                                      Get.snackbar(
-                                          AppTranslationConstants.appItemPrefs.tr,
-                                          MessageTranslationConstants.selectItemStateMsg.tr,
-                                          snackPosition: SnackPosition.bottom
-                                      );
-                                    }
-                                  },
-                                )],
-                            ).show();
-                          }
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 65),
+                  AppTheme.heightSpace50,
+                  AppTheme.heightSpace20,
                 ],
               );
             },

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:neom_generator/neom_generator/domain/use_cases/neom_generator_service.dart';
+import 'package:neom_generator/neom_generator/utils.constants/neom_generator_constants.dart';
 import 'package:neom_generator/neom_generator/vr/neom-360-viewer-controller.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
@@ -40,9 +41,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
   ChamberPreset get chamberPreset => _chamberPreset;
   set chamberPreset(ChamberPreset chamberPreset) => this._chamberPreset = chamberPreset;
 
-  RxBool _isPlaying = false.obs;
-  bool get isPlaying => _isPlaying.value;
-  set isPlaying(bool isPlaying) => this._isPlaying.value = isPlaying;
+  RxBool isPlaying = false.obs;
 
   RxBool _isLoading = true.obs;
   bool get isLoading => _isLoading.value;
@@ -159,7 +158,12 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
   }
 
 
-  void setFrequency(double frequency) async {
+  Future<void> setFrequency(double frequency) async {
+
+    double threshold = 0.0000001;
+    double freqDifference = (chamberPreset.neomFrequency!.frequency - frequency).abs();
+    if(chamberPreset.neomFrequency!.frequency == frequency || (freqDifference < threshold)) return;
+
     chamberPreset.neomFrequency!.frequency = frequency.ceilToDouble();
     frequencyDescription.value = "";
     frequencyController.frequencies.values.forEach((element) {
@@ -184,11 +188,11 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
   Future<void> stopPlay() async {
 
-    if(isPlaying && await soundController.isPlaying()) {
+    if(isPlaying.value && await soundController.isPlaying()) {
       await soundController.stop();
-      isPlaying = false;
+      isPlaying.value = false;
     } else {
-      await soundController.play().whenComplete(() => isPlaying = true);
+      await soundController.play().whenComplete(() => isPlaying.value = true);
     }
 
     logger.i('isPlaying: $isPlaying');
@@ -196,7 +200,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
   }
 
   void changeControllerStatus(bool status){
-    isPlaying = status;
+    isPlaying.value = status;
     update([AppPageIdConstants.generator]);
   }
 
@@ -297,9 +301,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
           chamberPreset.imgUrl = AppFlavour.getAppLogoUrl();
           chamberPreset.ownerId = profile.id;
           chamberPreset.neomFrequency!.description = frequencyDescription.value;
-          if(await ItemlistFirestore().addPreset(profileId: profile.id,
-              chamberId: chamber.id, preset: chamberPreset)) {
-
+          if(await ItemlistFirestore().addPreset(chamber.id, chamberPreset)) {
             await ProfileFirestore().addChamberPreset(profileId: profile.id, chamberPresetId: chamberPreset.id);
             await userController.reloadProfileItemlists();
             chambers = userController.profile.itemlists ?? {};
@@ -320,7 +322,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
     isButtonDisabled = false;
     isLoading = false;
 
-    update();
+    update([]);
   }
 
   Future<void> removePreset(BuildContext context) async {
@@ -337,7 +339,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
       if(chamber.id.isNotEmpty) {
         try {
-          if(await ItemlistFirestore().removePreset(profile.id, chamberPreset, chamber.id)) {
+          if(await ItemlistFirestore().removePreset(chamberPreset, chamber.id)) {
             await userController.reloadProfileItemlists();
             chambers = userController.profile.itemlists ?? {};
             logger.d("Preset removed from Neom Chamber");
@@ -356,7 +358,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
     existsInChamber = false;
     isButtonDisabled = false;
     isLoading = false;
-    update();
+    update([]);
   }
 
   void setParameterPosition({required double x, required double y, required double z}) {
@@ -372,7 +374,50 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
     }
 
     if(existsInChamber) {isUpdate = true;}
-    update();
+    update([]);
+  }
+
+  Future<void> increaseFrequency({double step = 1}) async {
+    double newFrequency = chamberPreset.neomFrequency!.frequency + step;
+    if(newFrequency <= 0) return;
+    AppUtilities.logger.d("Increasing Frequency from ${chamberPreset.neomFrequency!.frequency} to $newFrequency");
+    chamberPreset.neomFrequency!.frequency = newFrequency;
+    frequencyDescription.value = "";
+    frequencyController.frequencies.values.forEach((element) {
+      if(element.frequency.ceilToDouble() == newFrequency) {
+        frequencyDescription.value = element.description;
+      }
+    });
+
+    if(existsInChamber) {isUpdate = true;}
+
+    await soundController.setFrequency(newFrequency);
+    update([AppPageIdConstants.generator]);
+  }
+
+  Future<void> decreaseFrequency({double step = 1}) async {
+    double newFrequency = chamberPreset.neomFrequency!.frequency - step;
+    if(newFrequency <= 0) return;
+    await setFrequency(newFrequency);
+  }
+
+  RxBool longPressed = false.obs;
+  RxInt timerDuration = NeomGeneratorConstants.recursiveCallTimerDuration.obs;
+
+  void increaseOnLongPress() {
+    if(longPressed.value) {
+      if(timerDuration > NeomGeneratorConstants.recursiveCallTimerDurationMin) timerDuration--;
+      increaseFrequency();
+      Timer(Duration(milliseconds: timerDuration.value), increaseOnLongPress);
+    }
+  }
+
+  void decreaseOnLongPress() {
+    if(longPressed.value) {
+      if(timerDuration > NeomGeneratorConstants.recursiveCallTimerDurationMin) timerDuration--;
+      decreaseFrequency();
+      Timer(Duration(milliseconds: timerDuration.value), decreaseOnLongPress);
+    }
   }
 
 }

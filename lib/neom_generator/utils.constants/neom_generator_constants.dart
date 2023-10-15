@@ -6,5 +6,7 @@ class NeomGeneratorConstants {
   static const double volumeMax  = 1;
   static const double positionMin  = -0.2;
   static const double positionMax  = 0.2;
+  static const int recursiveCallTimerDuration  = 50;
+  static const int recursiveCallTimerDurationMin  = 25;
 
 }
