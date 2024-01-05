@@ -1,5 +1,4 @@
 
-
 abstract class NeomGeneratorService {
 
   Future<void> settingChamber();

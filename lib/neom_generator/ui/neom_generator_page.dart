@@ -1,51 +1,49 @@
 import 'dart:io';
 
-
-import 'package:neom_generator/neom_generator/neom_generator_controller.dart';
-import 'package:neom_generator/neom_generator/utils.constants/neom_generator_constants.dart';
-import 'package:neom_generator/neom_generator/utils.constants/neom_slider_constants.dart';
+import 'package:enum_to_string/enum_to_string.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
 import 'package:neom_commons/neom_commons.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
 import 'package:surround_frequency_generator/surround_frequency_generator.dart';
-import 'package:get/get.dart';
-import 'package:enum_to_string/enum_to_string.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+
+import '../utils.constants/neom_generator_constants.dart';
+import '../utils.constants/neom_slider_constants.dart';
+import 'neom_generator_controller.dart';
 
 class NeomGeneratorPage extends StatelessWidget {
+  const NeomGeneratorPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GetBuilder<NeomGeneratorController>(
-        id: AppPageIdConstants.generator,
-        init: NeomGeneratorController(),
-    builder: (_) => WillPopScope(
+      id: AppPageIdConstants.generator,
+      init: NeomGeneratorController(),
+      builder: (_) => WillPopScope(
         onWillPop: () async {
-
-      try {
-        if(_.isPlaying.value) {
-          await _.playStopPreview();
-        }
-        _.soundController.removeListener(() { });
-        _.soundController.dispose();
-        _.soundController = SoundController();
-        if(Platform.isAndroid) {
-          await _.webViewAndroidController.clearCache(); // Clear the WebView cache (optional)
-          await _.webViewAndroidController.goBack();    // Dispose of the WebView
-        } else {
-          await _.webViewIosController.clearCache();
-          await _.webViewIosController.goBack();
-        }
-
-        _.isPlaying.value = false;
-      } catch (e) {
-        AppUtilities.logger.e(e.toString());
-      }
-
-      return true;
-    },
+          try {
+            if(_.isPlaying.value) {
+              await _.playStopPreview();
+            }
+            _.soundController.removeListener(() { });
+            _.soundController.dispose();
+            _.soundController = SoundController();
+            if(Platform.isAndroid) {
+              await _.webViewAndroidController.clearCache(); // Clear the WebView cache (optional)
+              await _.webViewAndroidController.goBack();    // Dispose of the WebView
+            } else {
+              await _.webViewIosController.clearCache();
+              await _.webViewIosController.goBack();
+            }
+            _.isPlaying.value = false;
+          } catch (e) {
+            AppUtilities.logger.e(e.toString());
+          }
+          return true;
+        },
     child: Scaffold(
       appBar: AppBarChild(title: AppTranslationConstants.frequencyGenerator.tr),
         body: Container(
@@ -110,7 +108,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                       },
                                       innerWidget: (double val) {
                                         return Container(
-                                          padding: EdgeInsets.all(25),
+                                          padding: const EdgeInsets.all(25),
                                           child: Ink(
                                             decoration: BoxDecoration(
                                               color: _.isPlaying.value ? AppColor.deepDarkViolet : Colors.transparent,
@@ -121,7 +119,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                                   onPressed: ()  async {
                                                     await _.playStopPreview();
                                                   },
-                                                  icon: Icon(FontAwesomeIcons.om, size: 60)
+                                                  icon: const Icon(FontAwesomeIcons.om, size: 60)
                                               ),
                                             ),
                                           ),
@@ -147,8 +145,8 @@ class NeomGeneratorPage extends StatelessWidget {
                   ),
                   AppTheme.heightSpace20,
                   Text(
-                    AppTranslationConstants.parameters.tr.capitalizeFirst!,
-                    style: TextStyle(
+                    AppTranslationConstants.parameters.tr.capitalizeFirst,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 25,
                     ),
@@ -163,8 +161,8 @@ class NeomGeneratorPage extends StatelessWidget {
                   ),
                   AppTheme.heightSpace10,
                   Text(
-                    AppTranslationConstants.surroundSound.tr.capitalizeFirst!,
-                    style: TextStyle(
+                    AppTranslationConstants.surroundSound.tr.capitalizeFirst,
+                    style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -180,12 +178,12 @@ class NeomGeneratorPage extends StatelessWidget {
                   ),
                   AppTheme.heightSpace20,
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 30),
-                    child: _.existsInChamber && !_.isUpdate ? Container() : Row(
+                    padding: const EdgeInsets.symmetric(horizontal: 30),
+                    child: _.existsInChamber.value && !_.isUpdate.value ? Container() : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: <Widget>[
                         GestureDetector(
-                          child: buildIconActionChip(icon: Icon(Icons.remove), controllerFunction: () async {await _.decreaseFrequency();}),
+                          child: buildIconActionChip(icon: const Icon(Icons.remove), controllerFunction: () async {await _.decreaseFrequency();}),
                           onLongPress: () {
                             _.longPressed.value = true;
                             _.timerDuration.value = NeomGeneratorConstants.recursiveCallTimerDuration;
@@ -195,17 +193,17 @@ class NeomGeneratorPage extends StatelessWidget {
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
-                            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                             backgroundColor: AppColor.bondiBlue,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),),
-                          child: Text(_.isUpdate ? AppTranslationConstants.savePreset.tr : _.existsInChamber ? AppTranslationConstants.removePreset.tr : AppTranslationConstants.savePreset.tr,
-                              style: TextStyle(
+                          child: Text(_.isUpdate.value ? AppTranslationConstants.savePreset.tr : _.existsInChamber.value ? AppTranslationConstants.removePreset.tr : AppTranslationConstants.savePreset.tr,
+                              style: const TextStyle(
                                   color: Colors.white,fontSize: 18.0,
                                   fontWeight: FontWeight.bold
                               )
                           ),
                           onPressed: () async {
-                            if(_.existsInChamber && !_.isUpdate) {
+                            if(_.existsInChamber.value && !_.isUpdate.value) {
                               await _.removePreset(context);
                             } else {
                               await Alert(
@@ -243,7 +241,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                                       itemPadding: const EdgeInsets.symmetric(horizontal: 1.0),
                                                       itemSize: 10,
                                                       onRatingUpdate: (rating) {
-                                                        _.logger.i("New Rating set to $rating");
+                                                        AppUtilities.logger.i("New Rating set to $rating");
                                                       },
                                                     ),
                                                   ],
@@ -253,7 +251,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                           onChanged: (String? newItemState) {
                                             _.setFrequencyState(EnumToString.fromString(AppItemState.values, newItemState!) ?? AppItemState.noState);
                                           },
-                                          value: CoreUtilities.getItemState(_.frequencyState).name,
+                                          value: CoreUtilities.getItemState(_.frequencyState.value).name,
                                           alignment: Alignment.center,
                                           icon: const Icon(Icons.arrow_downward),
                                           iconSize: 15,
@@ -275,7 +273,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                                     neomChamber.name.length > AppConstants.maxItemlistNameLength
                                                         ? "${neomChamber.name
                                                         .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
-                                                        : neomChamber.name.capitalizeFirst!
+                                                        : neomChamber.name.capitalizeFirst
                                                 )
                                             ),
                                           )
@@ -283,7 +281,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                       onChanged: (String? selectedNeomChamber) {
                                         _.setSelectedItemlist(selectedNeomChamber!);
                                       },
-                                      value: _.chamber.id,
+                                      value: _.chamber.value.id,
                                       icon: const Icon(Icons.arrow_downward),
                                       alignment: Alignment.center,
                                       iconSize: 20,
@@ -300,12 +298,12 @@ class NeomGeneratorPage extends StatelessWidget {
                                 buttons: [
                                   DialogButton(
                                     color: AppColor.bondiBlue75,
-                                    child: Obx(()=>_.isLoading ? const Center(child: CircularProgressIndicator())
+                                    child: Obx(()=>_.isLoading.value ? const Center(child: CircularProgressIndicator())
                                         : Text(AppTranslationConstants.add.tr,
                                     )),
                                     onPressed: () async {
                                       if(_.frequencyState > 0) {
-                                        await _.addPreset(context, frequencyPracticeState: _.frequencyState);
+                                        await _.addPreset(context, frequencyPracticeState: _.frequencyState.value);
                                         Navigator.pop(context);
                                       } else {
                                         Get.snackbar(
@@ -322,7 +320,7 @@ class NeomGeneratorPage extends StatelessWidget {
                           },
                         ),
                         GestureDetector(
-                          child: buildIconActionChip(icon: Icon(Icons.add), controllerFunction: () async { await _.increaseFrequency();}),
+                          child: buildIconActionChip(icon: const Icon(Icons.add), controllerFunction: () async { await _.increaseFrequency();}),
                           onLongPress: () {
                             _.longPressed.value = true;
                             _.timerDuration.value = NeomGeneratorConstants.recursiveCallTimerDuration;
@@ -334,15 +332,15 @@ class NeomGeneratorPage extends StatelessWidget {
                     ),
                   ),
                   Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     child:Text(_.frequencyDescription.value,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 12,
                           overflow: TextOverflow.ellipsis
                       ),
                       textAlign: TextAlign.justify,
                       maxLines: 6,
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 20),
                   ),
                   AppTheme.heightSpace50,
                   AppTheme.heightSpace20,

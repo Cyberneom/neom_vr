@@ -15,28 +15,14 @@ class Neom360ViewerController extends GetxController  {
   // late Video360Controller controller;
   // late Video360Controller controller2;
 
-  RxString _durationText = "".obs;
-  String get durationText => _durationText.value;
-  set durationText(String durationText) => this._durationText.value = durationText;
-
-  RxString _totalText = "".obs;
-  String get totalText => _totalText.value;
-  set totalText(String totalText) => this._totalText.value = totalText;
-
-
-  RxBool _isPlaying = false.obs;
-  bool get isPlaying => _isPlaying.value;
-  set isPlaying(bool isPlaying) => this._isPlaying.value = isPlaying;
-
-  RxBool _isLoading = true.obs;
-  bool get isLoading => _isLoading.value;
-  set isLoading(bool isLoading) => this._isLoading.value = isLoading;
+  RxString durationText = "".obs;
+  RxString totalText = "".obs;
+  RxBool isPlaying = false.obs;
+  RxBool isLoading = true.obs;
 
   @override
   void onInit() async {
     super.onInit();
-
-
   }
 
   // onVideo360ViewCreated(Video360Controller controller) {
@@ -72,12 +58,9 @@ class Neom360ViewerController extends GetxController  {
         ),
       );
     }catch (e) {
-// An exception is thrown if browser app is not installed on Android device.
-      debugPrint(e.toString());
+      // An exception is thrown if browser app is not installed on Android device.
+      AppUtilities.logger.e(e.toString());
     }
   }
 
-
-
 }
-

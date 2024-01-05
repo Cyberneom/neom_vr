@@ -15,9 +15,9 @@ class NeomSliderConstants {
 
   static final customColors01 = CustomSliderColors(
     dotColor: Colors.white.withOpacity(0.8),
-    trackColor: Color(0xffFFD4BE).withOpacity(0.4),
-    progressBarColor: Color(0xffF6A881),
-    shadowColor: Color(0xffFFD4BE),
+    trackColor: const Color(0xffFFD4BE).withOpacity(0.4),
+    progressBarColor: const Color(0xffF6A881),
+    shadowColor: const Color(0xffFFD4BE),
     shadowStep: 10.0,
     shadowMaxOpacity: 0.6);
 
@@ -34,9 +34,9 @@ class NeomSliderConstants {
 
   static final customColors02 = CustomSliderColors(
     dotColor: Colors.white.withOpacity(0.8),
-    trackColor: Color(0xff98DBFC).withOpacity(0.3),
-    progressBarColor: Color(0xff6DCFFF),
-    shadowColor: Color(0xff98DBFC),
+    trackColor: const Color(0xff98DBFC).withOpacity(0.3),
+    progressBarColor: const Color(0xff6DCFFF),
+    shadowColor: const Color(0xff98DBFC),
     shadowStep: 15.0,
     shadowMaxOpacity: 0.3);
 
@@ -53,9 +53,9 @@ class NeomSliderConstants {
 
   static final customColors03 = CustomSliderColors(
     dotColor: Colors.white.withOpacity(0.8),
-    trackColor: Color(0xffEFC8FC).withOpacity(0.3),
-    progressBarColor: Color(0xffA177B0),
-    shadowColor: Color(0xffEFC8FC),
+    trackColor: const Color(0xffEFC8FC).withOpacity(0.3),
+    progressBarColor: const Color(0xffA177B0),
+    shadowColor: const Color(0xffEFC8FC),
     shadowStep: 20.0,
     shadowMaxOpacity: 0.3);
 
@@ -71,9 +71,9 @@ static final CircularSliderAppearance appearance04 = CircularSliderAppearance(
 
   static final customColors04 = CustomSliderColors(
       dotColor: Colors.white.withOpacity(0.8),
-      trackColor: Color(0xffEFC8FC).withOpacity(0.3),
-      progressBarColor: Color(0xffA177B0),
-      shadowColor: Color(0xffEFC8FC),
+      trackColor: const Color(0xffEFC8FC).withOpacity(0.3),
+      progressBarColor: const Color(0xffA177B0),
+      shadowColor: const Color(0xffEFC8FC),
       shadowStep: 20.0,
       shadowMaxOpacity: 0.3);
 }
