@@ -31,7 +31,7 @@ Widget buildChamberList(BuildContext context, ChamberController _) {
               Text(chamber.name.length > AppConstants.maxItemlistNameLength
                   ? "${chamber.name.substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
                   : chamber.name.capitalizeFirst),
-              ///DEPRECATE .isFav ? const Icon(Icons.favorite, size: 10,) : Container()
+              ///DEPRECATE .isFav ? const Icon(Icons.favorite, size: 10,) : SizedBox.shrink()
             ]),
         subtitle: chamber.description.isNotEmpty ? Text(chamber.description.capitalizeFirst, maxLines: 3, overflow: TextOverflow.ellipsis,) : null,
         trailing: ActionChip(
@@ -146,8 +146,8 @@ Widget buildItemList(BuildContext context, ChamberPresetController _) {
                     ? "${chamberPreset.name.substring(0,AppConstants.maxAppItemNameLength)}..."
                     : chamberPreset.name),
                 const SizedBox(width:5),
-                (AppFlavour.appInUse == AppInUse.c || (_.userController.profile.type == ProfileType.instrumentist && !_.isFixed)) ?
-                RatingHeartBar(state: chamberPreset.state.toDouble()) : Container(),
+                (AppFlavour.appInUse == AppInUse.c || (_.userController.profile.type == ProfileType.artist && !_.isFixed)) ?
+                RatingHeartBar(state: chamberPreset.state.toDouble()) : const SizedBox.shrink(),
               ]
           ),
           subtitle: Text(chamberPreset.description, textAlign: TextAlign.justify,),
@@ -181,8 +181,8 @@ Widget buildItemList(BuildContext context, ChamberPresetController _) {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(appItemState.name.tr),
-                                  appItemState.value == 0 ? Container() : const Text(" - "),
-                                  appItemState.value == 0 ? Container() :
+                                  appItemState.value == 0 ? const SizedBox.shrink() : const Text(" - "),
+                                  appItemState.value == 0 ? const SizedBox.shrink() :
                                   RatingHeartBar(state: appItemState.value.toDouble(),),
                                 ],
                               )

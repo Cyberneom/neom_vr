@@ -17,37 +17,11 @@ import '../widgets/chamber_widgets.dart';
 import 'chamber_controller.dart';
 
 class ChamberPage extends StatelessWidget {
-  const ChamberPage({Key? key}) : super(key: key);
+  const ChamberPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        return true;
-        // return (await showDialog(
-        //   context: context,
-        //   builder: (context) => AlertDialog(
-        //     backgroundColor: AppColor.getMain(),
-        //     title: const Text(AppConstants.appTitle.tr),
-        //     content:  Text(AppTranslationConstants.wantToCloseApp.tr),
-        //     actions: <Widget>[
-        //       TextButton(
-        //         child: Text(AppTranslationConstants.no.tr,
-        //           style: const TextStyle(color: AppColor.white),
-        //         ),
-        //         onPressed: () => Navigator.of(context).pop(false),
-        //       ),
-        //       TextButton(
-        //         child: Text(AppTranslationConstants.yes.tr,
-        //           style: const TextStyle(color: AppColor.white),
-        //         ),
-        //         onPressed: () => Navigator.of(context).pop(true),
-        //       )
-        //     ],
-        //   ),
-        // )) ?? false;
-      },
-      child: GetBuilder<ChamberController>(
+    return GetBuilder<ChamberController>(
         id: AppPageIdConstants.chamber,
         init: ChamberController(),
         builder: (_) => Scaffold(
@@ -96,7 +70,7 @@ class ChamberPage extends StatelessWidget {
                                 ),
                               ),
                               AppTheme.heightSpace5,
-                              Container(
+                              Align(
                                 alignment: Alignment.center,
                                 child: GestureDetector(
                                   child: Row(
@@ -113,11 +87,11 @@ class ChamberPage extends StatelessWidget {
                               ),
                               _.errorMsg.isNotEmpty ? Column(
                                 children: [
-                                  Container(
+                                  Align(
                                     alignment: Alignment.center,
                                     child: Text(_.errorMsg.value.tr, style: const TextStyle(fontSize: 12, color: AppColor.red)),
                                   ),
-                                ],) : Container()
+                                ],) : const SizedBox.shrink()
                             ],
                           ),
                         ),),
@@ -145,7 +119,7 @@ class ChamberPage extends StatelessWidget {
               ],
             )
           ),
-          floatingActionButton: _.isLoading.value ? Container() : Container(
+          floatingActionButton: _.isLoading.value ? const SizedBox.shrink() : Container(
             margin: const EdgeInsets.only(bottom: 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -168,7 +142,7 @@ class ChamberPage extends StatelessWidget {
                                 : AppTranslationConstants.suggestedReading.tr),
                           ],
                           onTap: () {
-                            Get.toNamed(AppRouteConstants.PDFViewer,
+                            Get.toNamed(AppRouteConstants.pdfViewer,
                                 arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, 0, 150]);
                             },
                         ),
@@ -180,7 +154,7 @@ class ChamberPage extends StatelessWidget {
                       elevation: AppTheme.elevationFAB,
                       child: Icon(AppFlavour.getSyncIcon()),
                       onPressed: () => {
-                        Get.toNamed(AppRouteConstants.PDFViewer,
+                        Get.toNamed(AppRouteConstants.pdfViewer,
                             arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, true, 0, 250]
                         )
                       },
@@ -189,9 +163,10 @@ class ChamberPage extends StatelessWidget {
                 ),
                 if(_.ownerType == OwnerType.profile) AppTheme.heightSpace75,
               ]
-          ),),
-        )
-      )
+          ),
+          ),
+
+      ),
     );
   }
 }

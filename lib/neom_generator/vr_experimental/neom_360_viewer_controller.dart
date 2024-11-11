@@ -38,23 +38,22 @@ class Neom360ViewerController extends GetxController  {
 
   Future<void> launchChromeVRView(BuildContext context, {String url = 'https://sbis04.github.io/demo360'}) async {
     try {
-      await launch(
+      await launchUrl(
         // NOTE: Replace this URL with your GitHub Pages URL.
-        url,
-        customTabsOption: CustomTabsOption(
-          toolbarColor: Theme.of(context).primaryColor,
-          enableDefaultShare: true,
-          enableUrlBarHiding: true,
-          showPageTitle: false,
-          animation: CustomTabsSystemAnimation.slideIn(),
-          extraCustomTabs: const <String>[
-            // ref.
-            'https://play.google.com/store/apps/details?id=org.mozilla.firefox',
-            'org.mozilla.firefox',
-            // ref.
-            'https://play.google.com/store/apps/details?id=com.microsoft.emmx',
-            'com.microsoft.emmx',
-          ],
+        Uri.parse(url),
+        customTabsOptions: CustomTabsOptions(
+          // toolbarColor: Theme.of(context).primaryColor,
+          urlBarHidingEnabled: true,
+          showTitle: false,
+          animations: CustomTabsSystemAnimations.slideIn(),
+          // extraCustomTabs: const <String>[
+          //   // ref.
+          //   'https://play.google.com/store/apps/details?id=org.mozilla.firefox',
+          //   'org.mozilla.firefox',
+          //   // ref.
+          //   'https://play.google.com/store/apps/details?id=com.microsoft.emmx',
+          //   'com.microsoft.emmx',
+          // ],
         ),
       );
     }catch (e) {

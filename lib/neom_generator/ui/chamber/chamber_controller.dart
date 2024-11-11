@@ -58,7 +58,7 @@ class ChamberController extends GetxController implements ChamberService {
       if(Get.arguments != null) {
         if(Get.arguments.isNotEmpty && Get.arguments[0] is Band) {
           band = Get.arguments[0];
-          userController.band = band;
+          userController.band = band!;
         }
 
         if(band != null) {

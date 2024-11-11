@@ -14,7 +14,7 @@ import '../widgets/chamber_widgets.dart';
 import 'chamber_preset_controller.dart';
 
 class ChamberPresetsPage extends StatelessWidget {
-  const ChamberPresetsPage({Key? key}) : super(key: key);
+  const ChamberPresetsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +33,7 @@ class ChamberPresetsPage extends StatelessWidget {
           child: _.isLoading.value ? const Center(child: CircularProgressIndicator())
               : Obx(()=> buildItemList(context, _)),
         ),
-        floatingActionButton: _.isFixed || !_.chamber.isModifiable ? Container()
+        floatingActionButton: _.isFixed || !_.chamber.isModifiable ? const SizedBox.shrink()
             : FloatingActionButton(
           tooltip: AppTranslationConstants.addItem.tr,
           onPressed: ()=> {

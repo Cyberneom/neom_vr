@@ -107,7 +107,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                         _.setParameterPosition(x: freqValue.x, y: freqValue.y, z: val);
                                       },
                                       innerWidget: (double val) {
-                                        return Container(
+                                        return Padding(
                                           padding: const EdgeInsets.all(25),
                                           child: Ink(
                                             decoration: BoxDecoration(
@@ -177,9 +177,9 @@ class NeomGeneratorPage extends StatelessWidget {
                     ],
                   ),
                   AppTheme.heightSpace20,
-                  Container(
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 30),
-                    child: _.existsInChamber.value && !_.isUpdate.value ? Container() : Row(
+                    child: _.existsInChamber.value && !_.isUpdate.value ? const SizedBox.shrink() : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: <Widget>[
                         GestureDetector(
@@ -224,8 +224,8 @@ class NeomGeneratorPage extends StatelessWidget {
                                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                                   children: [
                                                     Text(itemState.name.tr),
-                                                    itemState.value == 0 ? Container() : const Text(" - "),
-                                                    itemState.value == 0 ? Container() :
+                                                    itemState.value == 0 ? const SizedBox.shrink() : const Text(" - "),
+                                                    itemState.value == 0 ? const SizedBox.shrink() :
                                                     RatingBar(
                                                       initialRating: itemState.value.toDouble(),
                                                       minRating: 1,
@@ -292,7 +292,7 @@ class NeomGeneratorPage extends StatelessWidget {
                                         height: 1,
                                         color: Colors.grey,
                                       ),
-                                    )) : Container()
+                                    )) : const SizedBox.shrink()
                                   ],
                                 ),
                                 buttons: [
@@ -331,7 +331,7 @@ class NeomGeneratorPage extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child:Text(_.frequencyDescription.value,
                       style: const TextStyle(
