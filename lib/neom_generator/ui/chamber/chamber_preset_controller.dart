@@ -5,7 +5,6 @@ import 'package:neom_commons/core/data/firestore/chamber_firestore.dart';
 import 'package:neom_commons/core/data/implementations/user_controller.dart';
 import 'package:neom_commons/core/domain/model/band.dart';
 import 'package:neom_commons/core/domain/model/chamber.dart';
-import 'package:neom_commons/core/domain/model/item_list.dart';
 import 'package:neom_commons/core/domain/model/neom/chamber_preset.dart';
 import 'package:neom_commons/core/utils/app_utilities.dart';
 import 'package:neom_commons/core/utils/constants/app_page_id_constants.dart';
@@ -31,7 +30,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
   bool isFixed = false;
 
   String profileId = "";
-  String itemlistId = "";
+  String chamberId = "";
   Band band = Band();
   int _prevItemState = 0;
   OwnerType chamberOwner = OwnerType.profile;
@@ -48,23 +47,24 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
 
       if(Get.arguments != null) {
         List<dynamic> arguments = Get.arguments;
-        if(arguments[0] is Itemlist) {
+        if(arguments[0] is Chamber) {
           chamber =  arguments[0];
         } else if(arguments[0] is String) {
-          itemlistId = arguments[0];
-          chamber = await ChamberFirestore().retrieve(itemlistId);
+          chamberId = arguments[0];
+          chamber = await ChamberFirestore().retrieve(chamberId);
         }
+
         if(arguments.length > 1) {
           isFixed = arguments[1];
         }
       }
 
       if(chamber.id.isNotEmpty) {
-        logger.i("AppMediaItemController for Itemlist: ${chamber.id} ${chamber.name} ");
-        logger.d("${chamber.chamberPresets?.length ?? 0} items in itemlist");
+        logger.i("AppMediaItemController for Chamber: ${chamber.id} ${chamber.name} ");
+        logger.d("${chamber.chamberPresets?.length ?? 0} presets in chamber");
         loadPresetsFromChamber();
       } else {
-        logger.i("ItemlistItemController Init ready loco with no itemlist");
+        logger.i("ChamberPresetController Init ready loco with no chamber");
       }
 
       if(AppFlavour.appInUse == AppInUse.c) {
@@ -81,7 +81,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
   void onReady() {
     super.onReady();
     isLoading.value = false;
-    update([AppPageIdConstants.chamberPreset]);
+    update([AppPageIdConstants.chamberPresets]);
   }
 
   void clear() {
@@ -120,7 +120,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
       }
 
       Get.back();
-      update([AppPageIdConstants.chamberPreset]);
+      update([AppPageIdConstants.chamberPresets]);
     }
   }
 
@@ -161,7 +161,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
       logger.e(e.toString());
     }
 
-    update([AppPageIdConstants.chamberPreset, AppPageIdConstants.chamber, AppPageIdConstants.chamberPresetDetails]);
+    update([AppPageIdConstants.chamberPresets, AppPageIdConstants.chamber, AppPageIdConstants.chamberPresetDetails]);
     return false;
   }
 
@@ -185,7 +185,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
     }
 
     Get.back();
-    update([AppPageIdConstants.chamberPreset, AppPageIdConstants.chamber]);
+    update([AppPageIdConstants.chamberPresets, AppPageIdConstants.chamber]);
     return true;
   }
 
@@ -209,7 +209,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
       );
     }
 
-    update([AppPageIdConstants.chamberPreset]);
+    update([AppPageIdConstants.chamberPresets]);
   }
 
   @override
@@ -224,7 +224,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
     }
 
     chamberPresets.value = presets;
-    update([AppPageIdConstants.chamberPreset]);
+    update([AppPageIdConstants.chamberPresets]);
   }
 
 }

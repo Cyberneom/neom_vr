@@ -265,7 +265,7 @@ class ChamberController extends GetxController implements ChamberService {
     logger.t('setPrivacyOption for Playlist');
     isPublicNewChamber.value = !isPublicNewChamber.value;
     logger.d("New Itemlist would be ${isPublicNewChamber.value ? 'Public':'Private'}");
-    update([AppPageIdConstants.chamber, AppPageIdConstants.chamberPreset]);
+    update([AppPageIdConstants.chamber, AppPageIdConstants.chamberPresets]);
   }
 
 }

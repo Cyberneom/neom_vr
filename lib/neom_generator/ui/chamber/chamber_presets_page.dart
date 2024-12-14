@@ -19,7 +19,7 @@ class ChamberPresetsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetBuilder<ChamberPresetController>(
-      id: AppPageIdConstants.itemlistItem,
+      id: AppPageIdConstants.chamberPresets,
       init: ChamberPresetController(),
       builder: (_) => Scaffold(
         backgroundColor: AppColor.getMain(),
@@ -31,7 +31,7 @@ class ChamberPresetsPage extends StatelessWidget {
           height: AppTheme.fullHeight(context),
           decoration: AppTheme.appBoxDecoration, 
           child: _.isLoading.value ? const Center(child: CircularProgressIndicator())
-              : Obx(()=> buildItemList(context, _)),
+              : Obx(()=> buildPresetsList(context, _)),
         ),
         floatingActionButton: _.isFixed || !_.chamber.isModifiable ? const SizedBox.shrink()
             : FloatingActionButton(

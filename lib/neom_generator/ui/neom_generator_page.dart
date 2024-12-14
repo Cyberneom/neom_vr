@@ -45,7 +45,7 @@ class NeomGeneratorPage extends StatelessWidget {
           return true;
         },
     child: Scaffold(
-      appBar: AppBarChild(title: AppTranslationConstants.frequencyGenerator.tr),
+      appBar: AppBarChild(title: AppTranslationConstants.neomChamber.tr),
         body: Container(
         height: AppTheme.fullHeight(context),
         width: AppTheme.fullWidth(context),
@@ -264,35 +264,35 @@ class NeomGeneratorPage extends StatelessWidget {
                                           ),
                                         )
                                     ),
-                                    _.chambers.length > 1 ? Obx(()=> DropdownButton<String>(
-                                      items: _.chambers.values.map((neomChamber) =>
-                                          DropdownMenuItem<String>(
-                                            value: neomChamber.id,
-                                            child: Center(
-                                                child: Text(
-                                                    neomChamber.name.length > AppConstants.maxItemlistNameLength
-                                                        ? "${neomChamber.name
-                                                        .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
-                                                        : neomChamber.name.capitalizeFirst
-                                                )
-                                            ),
-                                          )
-                                      ).toList(),
-                                      onChanged: (String? selectedNeomChamber) {
-                                        _.setSelectedItemlist(selectedNeomChamber!);
-                                      },
-                                      value: _.chamber.value.id,
-                                      icon: const Icon(Icons.arrow_downward),
-                                      alignment: Alignment.center,
-                                      iconSize: 20,
-                                      elevation: 16,
-                                      style: const TextStyle(color: Colors.white),
-                                      dropdownColor: AppColor.main75,
-                                      underline: Container(
-                                        height: 1,
-                                        color: Colors.grey,
-                                      ),
-                                    )) : const SizedBox.shrink()
+                                    // _.chambers.length > 1 ? Obx(()=> DropdownButton<String>(
+                                    //   items: _.chambers.values.map((neomChamber) =>
+                                    //       DropdownMenuItem<String>(
+                                    //         value: neomChamber.id,
+                                    //         child: Center(
+                                    //             child: Text(
+                                    //                 neomChamber.name.length > AppConstants.maxItemlistNameLength
+                                    //                     ? "${neomChamber.name
+                                    //                     .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
+                                    //                     : neomChamber.name.capitalizeFirst
+                                    //             )
+                                    //         ),
+                                    //       )
+                                    //   ).toList(),
+                                    //   onChanged: (String? selectedNeomChamber) {
+                                    //     _.setSelectedItemlist(selectedNeomChamber!);
+                                    //   },
+                                    //   value: _.chamber.value.id,
+                                    //   icon: const Icon(Icons.arrow_downward),
+                                    //   alignment: Alignment.center,
+                                    //   iconSize: 20,
+                                    //   elevation: 16,
+                                    //   style: const TextStyle(color: Colors.white),
+                                    //   dropdownColor: AppColor.main75,
+                                    //   underline: Container(
+                                    //     height: 1,
+                                    //     color: Colors.grey,
+                                    //   ),
+                                    // )) : const SizedBox.shrink()
                                   ],
                                 ),
                                 buttons: [

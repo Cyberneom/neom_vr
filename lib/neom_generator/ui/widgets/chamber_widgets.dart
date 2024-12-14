@@ -24,7 +24,7 @@ Widget buildChamberList(BuildContext context, ChamberController _) {
         contentPadding: const EdgeInsets.symmetric(horizontal: 10),
         leading: SizedBox(
             width: 50,
-            child: HandledCachedNetworkImage(chamber.imgUrl)
+            child: HandledCachedNetworkImage(chamber.imgUrl.isNotEmpty ? chamber.imgUrl : AppFlavour.getAppLogoUrl())
         ),
         title: Row(
             children: <Widget>[
@@ -127,7 +127,7 @@ Widget buildChamberList(BuildContext context, ChamberController _) {
   );
 }
 
-Widget buildItemList(BuildContext context, ChamberPresetController _) {
+Widget buildPresetsList(BuildContext context, ChamberPresetController _) {
   return ListView.separated(
     separatorBuilder: (context, index) => const Divider(),
     itemCount: _.chamberPresets.length,
@@ -162,7 +162,14 @@ Widget buildItemList(BuildContext context, ChamberPresetController _) {
                 Get.toNamed(AppRouteConstants.generator,  arguments: [preset.clone()]);
               }
           ),
-          onTap: () => !_.isFixed ? _.getChamberPresetDetails(chamberPreset) : {},
+          onTap: () {
+            if(!_.isFixed) {
+              _.getChamberPresetDetails(chamberPreset);
+            } else {
+              ChamberPreset preset = _.chamber.chamberPresets!.firstWhere((element) => element.id == chamberPreset.id);
+              Get.toNamed(AppRouteConstants.generator,  arguments: [preset.clone()]);
+            }
+          },
           onLongPress: () => _.chamber.isModifiable && (AppFlavour.appInUse != AppInUse.c || !_.isFixed) ? Alert(
               context: context,
               title: AppTranslationConstants.appItemPrefs.tr,

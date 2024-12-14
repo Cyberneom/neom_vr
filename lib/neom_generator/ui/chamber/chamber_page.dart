@@ -1,15 +1,10 @@
 
-import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:neom_commons/auth/ui/login/login_controller.dart';
-import 'package:neom_commons/core/app_flavour.dart';
 import 'package:neom_commons/core/utils/app_color.dart';
 import 'package:neom_commons/core/utils/app_theme.dart';
 import 'package:neom_commons/core/utils/constants/app_page_id_constants.dart';
-import 'package:neom_commons/core/utils/constants/app_route_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_translation_constants.dart';
-import 'package:neom_commons/core/utils/enums/app_in_use.dart';
 import 'package:neom_commons/core/utils/enums/owner_type.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 
@@ -119,53 +114,52 @@ class ChamberPage extends StatelessWidget {
               ],
             )
           ),
-          floatingActionButton: _.isLoading.value ? const SizedBox.shrink() : Container(
-            margin: const EdgeInsets.only(bottom: 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SizedBox(
-                      child: DefaultTextStyle(
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        child: AnimatedTextKit(
-                          repeatForever: true,
-                          animatedTexts: [
-                            FlickerAnimatedText(
-                                AppFlavour.appInUse == AppInUse.g ?
-                                AppTranslationConstants.synchronizeSpotifyPlaylists.tr
-                                : AppTranslationConstants.suggestedReading.tr),
-                          ],
-                          onTap: () {
-                            Get.toNamed(AppRouteConstants.pdfViewer,
-                                arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, 0, 150]);
-                            },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 5,),
-                    FloatingActionButton(
-                      heroTag: AppPageIdConstants.spotifySync,
-                      elevation: AppTheme.elevationFAB,
-                      child: Icon(AppFlavour.getSyncIcon()),
-                      onPressed: () => {
-                        Get.toNamed(AppRouteConstants.pdfViewer,
-                            arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, true, 0, 250]
-                        )
-                      },
-                    ),
-                  ],
-                ),
-                if(_.ownerType == OwnerType.profile) AppTheme.heightSpace75,
-              ]
-          ),
-          ),
-
+        //   floatingActionButton: _.isLoading.value ? const SizedBox.shrink() : Container(
+        //     margin: const EdgeInsets.only(bottom: 0),
+        //     child: Column(
+        //       crossAxisAlignment: CrossAxisAlignment.end,
+        //       mainAxisAlignment: MainAxisAlignment.end,
+        //       children: [
+        //         Row(
+        //           mainAxisAlignment: MainAxisAlignment.end,
+        //           children: [
+        //             SizedBox(
+        //               child: DefaultTextStyle(
+        //                 style: const TextStyle(
+        //                   fontWeight: FontWeight.bold,
+        //                 ),
+        //                 child: AnimatedTextKit(
+        //                   repeatForever: true,
+        //                   animatedTexts: [
+        //                     FlickerAnimatedText(
+        //                         AppFlavour.appInUse == AppInUse.g ?
+        //                         AppTranslationConstants.synchronizeSpotifyPlaylists.tr
+        //                         : AppTranslationConstants.suggestedReading.tr),
+        //                   ],
+        //                   onTap: () {
+        //                     Get.toNamed(AppRouteConstants.pdfViewer,
+        //                         arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, 0, 150]);
+        //                     },
+        //                 ),
+        //               ),
+        //             ),
+        //             const SizedBox(width: 5,),
+        //             FloatingActionButton(
+        //               heroTag: AppPageIdConstants.spotifySync,
+        //               elevation: AppTheme.elevationFAB,
+        //               child: Icon(AppFlavour.getSyncIcon()),
+        //               onPressed: () => {
+        //                 Get.toNamed(AppRouteConstants.pdfViewer,
+        //                     arguments: [Get.find<LoginController>().appInfo.value.suggestedUrl, true, 0, 250]
+        //                 )
+        //               },
+        //             ),
+        //           ],
+        //         ),
+        //         if(_.ownerType == OwnerType.profile) AppTheme.heightSpace75,
+        //       ]
+        //   ),
+        // ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'package:neom_commons/core/domain/model/neom/neom_parameter.dart';
 import 'package:neom_commons/core/utils/app_utilities.dart';
 import 'package:neom_commons/core/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_translation_constants.dart';
+import 'package:neom_commons/core/utils/enums/app_in_use.dart';
 import 'package:neom_commons/core/utils/enums/app_item_state.dart';
 import 'package:neom_frequencies/frequencies/ui/frequency_controller.dart';
 import 'package:surround_frequency_generator/surround_frequency_generator.dart';
@@ -50,7 +51,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
   RxString frequencyDescription = "".obs;
 
-  bool noItemlists = false;
+  bool noChambers = false;
 
   @override
   void onInit() async {
@@ -87,7 +88,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
       await soundController.init();
       if(chambers.isEmpty) {
-        noItemlists = true;
+        noChambers = true;
       } else {
         existsInChamber.value = frequencyAlreadyInItemlist();
         if(chamber.value.id.isEmpty) {
@@ -240,7 +241,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
     bool alreadyInItemlist = false;
     for (var nChamber in chambers.values) {
-      for (var presets in nChamber.chamberPresets!) {
+      for (var presets in nChamber.chamberPresets ?? []) {
         if (chamberPreset.id == presets.id) {
           alreadyInItemlist = true;
           chamber.value = nChamber;
@@ -263,7 +264,7 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
       if(frequencyPracticeState > 0) frequencyState.value = frequencyPracticeState;
 
-      if(noItemlists) {
+      if(noChambers) {
         chamber.value.name = AppTranslationConstants.myFavItemlistName.tr;
         chamber.value.description = AppTranslationConstants.myFavItemlistDesc.tr;
         chamber.value.imgUrl = AppFlavour.getAppLogoUrl();
@@ -285,7 +286,12 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
           if(await ChamberFirestore().addPreset(chamber.value.id, chamberPreset)) {
             await ProfileFirestore().addChamberPreset(profileId: profile.id, chamberPresetId: chamberPreset.id);
             await userController.reloadProfileItemlists();
-            chambers.value = userController.profile.chambers ?? {};
+            await userController.loadProfileChambers();
+            if(AppFlavour.appInUse == AppInUse.c) await userController.loadProfileChambers();
+            userController.profile.chamberPresets?.add(chamberPreset.id);
+            // userController.profile.chambers ??= {};
+            // userController.profile.chambers![chamber.value.id] = chamber.value;
+            // chambers.value = userController.profile.chambers ?? {};
             AppUtilities.logger.d("Preset added to Neom Chamber");
           } else {
             AppUtilities.logger.d("Preset not added to Neom Chamber");
@@ -337,13 +343,13 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
         } catch (e) {
           AppUtilities.logger.e(e.toString());
           AppUtilities.showSnackBar(
-              title: AppTranslationConstants.frequencyGenerator.tr,
+              title: AppTranslationConstants.neomChamber.tr,
               message: 'Algo salió mal eliminando tu preset de tu cámara Neom.'
           );
         }
 
         AppUtilities.showSnackBar(
-            title: AppTranslationConstants.frequencyGenerator.tr,
+            title: AppTranslationConstants.neomChamber.tr,
             message: 'El preajuste para la frecuencia de "${chamberPreset.neomFrequency!.frequency.ceilToDouble().toString()}"'
                 ' Hz fue removido de la Cámara Neom: ${chamber.value.name} satisfactoriamente.'
         );

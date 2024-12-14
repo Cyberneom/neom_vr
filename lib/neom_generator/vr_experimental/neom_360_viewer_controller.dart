@@ -56,7 +56,7 @@ class Neom360ViewerController extends GetxController  {
           // ],
         ),
       );
-    }catch (e) {
+    } catch (e) {
       // An exception is thrown if browser app is not installed on Android device.
       AppUtilities.logger.e(e.toString());
     }
