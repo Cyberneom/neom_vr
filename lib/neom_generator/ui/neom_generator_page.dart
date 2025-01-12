@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+import 'package:neom_commons/core/ui/widgets/read_more_container.dart';
 import 'package:neom_commons/neom_commons.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
@@ -26,7 +27,7 @@ class NeomGeneratorPage extends StatelessWidget {
         onWillPop: () async {
           try {
             if(_.isPlaying.value) {
-              await _.playStopPreview();
+              await _.playStopPreview(stopPreview: true);
             }
             _.soundController.removeListener(() { });
             _.soundController.dispose();
@@ -50,13 +51,16 @@ class NeomGeneratorPage extends StatelessWidget {
         height: AppTheme.fullHeight(context),
         width: AppTheme.fullWidth(context),
         decoration: AppTheme.appBoxDecoration,
-        child: SingleChildScrollView(child: Column(
+        child: SingleChildScrollView(
+          child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           SoundWidget(soundController: _.soundController,
-              webViewAndroidController: _.webViewAndroidController,
-              webViewIosController: _.webViewIosController),
-          AppTheme.heightSpace20,
+            webViewAndroidController: _.webViewAndroidController,
+            webViewIosController: _.webViewIosController,
+            backgroundColor: AppColor.getMain(),
+          ),
+          AppTheme.heightSpace40,
           ValueListenableBuilder<AudioParam>(
             valueListenable: _.soundController,
             builder: (context, AudioParam freqValue, __) {
@@ -81,7 +85,6 @@ class NeomGeneratorPage extends StatelessWidget {
                           initialValue: freqValue.x,
                           onChange: (double val) {
                             _.setParameterPosition(x: val, y: freqValue.y, z: freqValue.z);
-                            // _.soundController.setPosition(val, freqValue.y, freqValue.z);
                           },
                           innerWidget: (double v) {
                             return Align(
@@ -93,7 +96,6 @@ class NeomGeneratorPage extends StatelessWidget {
                                 initialValue: freqValue.y,
                                 onChange: (double val) {
                                   _.setParameterPosition(x: freqValue.x, y: val, z: freqValue.z);
-                                  // _.soundController.setPosition(freqValue.x, val, freqValue.z);
                                 },
                                 innerWidget: (double v) {
                                   return Align(
@@ -178,7 +180,7 @@ class NeomGeneratorPage extends StatelessWidget {
                   ),
                   AppTheme.heightSpace20,
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _.existsInChamber.value && !_.isUpdate.value ? const SizedBox.shrink() : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: <Widget>[
@@ -193,12 +195,13 @@ class NeomGeneratorPage extends StatelessWidget {
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                             backgroundColor: AppColor.bondiBlue,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),),
                           child: Text(_.isUpdate.value ? AppTranslationConstants.savePreset.tr : _.existsInChamber.value ? AppTranslationConstants.removePreset.tr : AppTranslationConstants.savePreset.tr,
                               style: const TextStyle(
-                                  color: Colors.white,fontSize: 18.0,
+                                  color: Colors.white,
+                                  fontSize: 18.0,
                                   fontWeight: FontWeight.bold
                               )
                           ),
@@ -264,35 +267,6 @@ class NeomGeneratorPage extends StatelessWidget {
                                           ),
                                         )
                                     ),
-                                    // _.chambers.length > 1 ? Obx(()=> DropdownButton<String>(
-                                    //   items: _.chambers.values.map((neomChamber) =>
-                                    //       DropdownMenuItem<String>(
-                                    //         value: neomChamber.id,
-                                    //         child: Center(
-                                    //             child: Text(
-                                    //                 neomChamber.name.length > AppConstants.maxItemlistNameLength
-                                    //                     ? "${neomChamber.name
-                                    //                     .substring(0,AppConstants.maxItemlistNameLength).capitalizeFirst}..."
-                                    //                     : neomChamber.name.capitalizeFirst
-                                    //             )
-                                    //         ),
-                                    //       )
-                                    //   ).toList(),
-                                    //   onChanged: (String? selectedNeomChamber) {
-                                    //     _.setSelectedItemlist(selectedNeomChamber!);
-                                    //   },
-                                    //   value: _.chamber.value.id,
-                                    //   icon: const Icon(Icons.arrow_downward),
-                                    //   alignment: Alignment.center,
-                                    //   iconSize: 20,
-                                    //   elevation: 16,
-                                    //   style: const TextStyle(color: Colors.white),
-                                    //   dropdownColor: AppColor.main75,
-                                    //   underline: Container(
-                                    //     height: 1,
-                                    //     color: Colors.grey,
-                                    //   ),
-                                    // )) : const SizedBox.shrink()
                                   ],
                                 ),
                                 buttons: [
@@ -331,25 +305,61 @@ class NeomGeneratorPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                  AppTheme.heightSpace10,
+                  InkWell(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _.isRecording ? Colors.grey.shade800 : Colors.grey.shade900,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(2, 2),
+                        ),
+                      ],),
+                      child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (_.isRecording)
+                          const SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: CircularProgressIndicator(),
+                          ),
+                        IconButton(
+                          onPressed: () => _.isRecording ? _.stopRecording() : _.startRecording(),
+                          icon: Icon(FontAwesomeIcons.microphone, size: 40, color: _.isRecording ? Colors.red : null),
+                        ),
+                      ],
+                    ),),
+                    onTap: () => _.isRecording ? _.stopRecording() : _.startRecording(),
+                    onLongPress: () => _.isRecording ? _.stopRecording() : _.startRecording(),
+                  ),
+                  AppTheme.heightSpace10,
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child:Text(_.frequencyDescription.value,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          overflow: TextOverflow.ellipsis
-                      ),
+                    child: _.isRecording || _.frequencyDescription.isEmpty ? Text(
+                      _.isRecording ? "${AppTranslationConstants.frequency.tr}: ${_.detectedFrequency.toInt()} Hz"
+                  : _.detectedFrequency == 0 ? AppTranslationConstants.findsYourVoiceFrequency.tr : '',
+                      style: TextStyle(fontSize: _.isRecording ? 18 : 15,),
                       textAlign: TextAlign.justify,
-                      maxLines: 6,
-                    ),
+                    ) : ReadMoreContainer(
+                      text: _.frequencyDescription.value,
+                      fontSize: 12,
+                      trimLines: 5,
+                    )
                   ),
-                  AppTheme.heightSpace50,
                   AppTheme.heightSpace20,
                 ],
               );
             },
           ),
         ],
-      ),),
+      ),
+        ),
         ),
       //TODO EXPERIMENTAL FEATURES TO MOVE NEOM CHAMBER 2D TO A 3D VERSION TO USE IT WITH SMARTPHONE VR
       // floatingActionButton: Row(

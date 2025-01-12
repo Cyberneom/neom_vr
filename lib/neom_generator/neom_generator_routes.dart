@@ -11,7 +11,7 @@ class NeomGeneratorRoutes {
     GetPage(
         name: AppRouteConstants.generator,
         page: () => const NeomGeneratorPage(),
-        transition: Transition.zoom
+        transition: Transition.zoom,
     ),
     GetPage(
         name: AppRouteConstants.chamberPresets,

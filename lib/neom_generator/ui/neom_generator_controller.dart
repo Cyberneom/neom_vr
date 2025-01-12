@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_sound/flutter_sound.dart';
 import 'package:get/get.dart';
 import 'package:neom_commons/core/app_flavour.dart';
 import 'package:neom_commons/core/data/firestore/chamber_firestore.dart';
@@ -17,6 +19,9 @@ import 'package:neom_commons/core/utils/constants/app_translation_constants.dart
 import 'package:neom_commons/core/utils/enums/app_in_use.dart';
 import 'package:neom_commons/core/utils/enums/app_item_state.dart';
 import 'package:neom_frequencies/frequencies/ui/frequency_controller.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:pitch_detector_dart/pitch_detector.dart';
+import 'package:pitch_detector_dart/pitch_detector_result.dart';
 import 'package:surround_frequency_generator/surround_frequency_generator.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
@@ -48,10 +53,16 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
   final RxBool isUpdate = false.obs;
   final RxBool isButtonDisabled = false.obs;
 
-
   RxString frequencyDescription = "".obs;
 
   bool noChambers = false;
+
+  FlutterSoundRecorder? _recorder;
+  bool isRecording = false;
+  double detectedFrequency = 0;
+  StreamController<Uint8List>? _audioStreamController;
+  final List<int> _accumulatedData = [];
+  List<double> detectedPitches = [];
 
   @override
   void onInit() async {
@@ -75,6 +86,9 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
       chamberPreset.neomParameter ??= NeomParameter();
 
       settingChamber();
+
+      _recorder = FlutterSoundRecorder();
+      initializeRecorder();
     } catch(e) {
       AppUtilities.logger.e(e.toString());
     }
@@ -197,15 +211,15 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
 
   }
 
-  Future<void> playStopPreview() async {
+  Future<void> playStopPreview({bool stopPreview = false}) async {
 
     AppUtilities.logger.d("Previewing Chamber Preset ${chamberPreset.name}");
 
     try {
-      if(await soundController.isPlaying()) {
+      if(await soundController.isPlaying() || stopPreview) {
         AppUtilities.logger.d("Stopping Chamber Preset ${chamberPreset.name}");
         await soundController.stop();
-        await soundController.init();
+        // await soundController.init();
         changeControllerStatus(false);
       } else {
         AppUtilities.logger.d("Playing Chamber Preset ${chamberPreset.name}");
@@ -420,6 +434,116 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
       decreaseFrequency();
       Timer(Duration(milliseconds: timerDuration.value), decreaseOnLongPress);
     }
+  }
+
+  Future<void> initializeRecorder() async {
+    await Permission.microphone.request();
+    await _recorder!.openRecorder();
+  }
+
+  void initializeStreamController(){
+    _audioStreamController = StreamController<Uint8List>();
+    _audioStreamController!.stream.listen((audioData) async {
+
+      double freqPitch = await getPitchFromAudioData(audioData);
+      if(freqPitch > NeomGeneratorConstants.frequencyMin && freqPitch < NeomGeneratorConstants.frequencyMax) {
+        AppUtilities.logger.d("Pitch: $freqPitch Hz");
+        detectedFrequency = freqPitch;
+        detectedPitches.add(freqPitch);
+      }
+
+      update([AppPageIdConstants.generator]);
+    });
+  }
+
+  Future<void> startRecording() async {
+
+
+    AppUtilities.logger.d("Start Recording");
+    isRecording = true;
+    detectedFrequency = 0;
+
+
+    try {
+      playStopPreview(stopPreview: true);
+
+      if (_audioStreamController == null) {
+        initializeStreamController();
+      }
+
+      _recorder!.startRecorder(
+        codec: Codec.pcm16WAV,
+        sampleRate: NeomGeneratorConstants.sampleRate,
+        numChannels: 1,
+        toStream: _audioStreamController?.sink, //
+      );
+
+      // Stop the recorder after 10 seconds
+      Timer(Duration(seconds: 6), () {
+        stopRecording();
+        if((detectedFrequency) > 0) {
+          setFrequency(detectedFrequency);
+        }
+      });
+    } catch(e) {
+      AppUtilities.logger.e(e.toString());
+    }
+
+    update([AppPageIdConstants.generator]);
+  }
+
+  void stopRecording() async {
+    await _recorder!.stopRecorder();
+    isRecording = false;
+    detectedFrequency = getMostFrequentPitch();
+    if(detectedFrequency > 0) playStopPreview();
+    update([AppPageIdConstants.generator]);
+  }
+
+  Future<double> getPitchFromAudioData(Uint8List audioData) async {
+    _accumulatedData.addAll(audioData);
+
+    const int bytesPerSample = 2;
+    double pitch = 0;
+    int neededBytes = NeomGeneratorConstants.neededSamples * bytesPerSample;
+
+    while (_accumulatedData.length >= neededBytes) {
+      // Extraemos los primeros neededBytes
+      final chunk = _accumulatedData.sublist(0, neededBytes);
+      // Los removemos del acumulado para postearior analisis del buffer
+      _accumulatedData.removeRange(0, neededBytes);
+
+      final pitchDetectorDart = PitchDetector(
+        audioSampleRate: NeomGeneratorConstants.sampleRate.toDouble(),
+        bufferSize: NeomGeneratorConstants.neededSamples,
+      );
+
+      try {
+        final chunkAsUint8List = Uint8List.fromList(chunk);
+
+        PitchDetectorResult pitchResult = await pitchDetectorDart.getPitchFromIntBuffer(chunkAsUint8List);
+        pitch = pitchResult.pitch.roundToDouble();
+      } catch (e) {
+        AppUtilities.logger.e("Pitch detector error: $e");
+      }
+    }
+
+    return pitch;
+  }
+
+  double getMostFrequentPitch() {
+    if (detectedPitches.isEmpty) return 0;
+
+    final Map<double, int> frequencyMap = {};
+
+    for (var pitch in detectedPitches) {
+      frequencyMap[pitch] = (frequencyMap[pitch] ?? 0) + 1;
+    }
+
+    final mostFrequentEntry = frequencyMap.entries
+        .reduce((a, b) => a.value >= b.value ? a : b);
+
+    return mostFrequentEntry.key; //Most recurrent freq
   }
 
 }
