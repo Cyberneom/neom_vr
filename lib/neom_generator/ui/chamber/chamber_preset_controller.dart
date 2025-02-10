@@ -205,7 +205,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
 
     ChamberPreset chamberPreset = chamber.chamberPresets?.firstWhere((element) => element.name == appMediaItem.name) ?? ChamberPreset();
     if(chamberPreset.name.isNotEmpty) {
-      Get.toNamed(AppFlavour.getItemDetailsRoute(), arguments: [chamberPreset.clone()]
+      Get.toNamed(AppFlavour.getMainItemDetailsRoute(), arguments: [chamberPreset.clone()]
       );
     }
 

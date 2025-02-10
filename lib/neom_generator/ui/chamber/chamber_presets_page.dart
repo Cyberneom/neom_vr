@@ -38,7 +38,7 @@ class ChamberPresetsPage extends StatelessWidget {
           tooltip: AppTranslationConstants.addItem.tr,
           onPressed: ()=> {
             Get.toNamed(AppRouteConstants.itemSearch,
-                arguments: [SpotifySearchType.song, _.chamber])
+                arguments: [MediaSearchType.song, _.chamber])
           },
           child: const Icon(Icons.playlist_add),
         ),

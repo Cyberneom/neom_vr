@@ -146,7 +146,7 @@ Widget buildPresetsList(BuildContext context, ChamberPresetController _) {
                     ? "${chamberPreset.name.substring(0,AppConstants.maxAppItemNameLength)}..."
                     : chamberPreset.name),
                 const SizedBox(width:5),
-                (AppFlavour.appInUse == AppInUse.c || (_.userController.profile.type == ProfileType.artist && !_.isFixed)) ?
+                (AppFlavour.appInUse == AppInUse.c || (_.userController.profile.type == ProfileType.appArtist && !_.isFixed)) ?
                 RatingHeartBar(state: chamberPreset.state.toDouble()) : const SizedBox.shrink(),
               ]
           ),
