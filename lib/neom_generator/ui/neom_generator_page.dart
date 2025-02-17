@@ -145,12 +145,20 @@ class NeomGeneratorPage extends StatelessWidget {
                       _.setVolume(val);
                     },
                   ),
+                  AppTheme.heightSpace10,
+
+                  Text("${_.soundController.value.freq.round()} Hz",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 30,
+                    ),
+                  ),
                   AppTheme.heightSpace20,
                   Text(
                     AppTranslationConstants.parameters.tr.capitalizeFirst,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 25,
+                      fontSize: 20,
                     ),
                   ),
                   AppTheme.heightSpace10,
@@ -158,7 +166,9 @@ class NeomGeneratorPage extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       Text("${AppTranslationConstants.volume.tr}: ${(_.soundController.value.volume*100).round()}"),
-                      Text("${AppTranslationConstants.frequency.tr}: ${_.soundController.value.freq.round()} Hz"),
+                      Text(
+                          "${AppTranslationConstants.waveLength.tr}: ${_.soundController.value.freq > 0 ? ((343 / _.soundController.value.freq) * 100).toStringAsFixed(2) : 'N/A'} cm"
+                      ),
                     ],
                   ),
                   AppTheme.heightSpace10,

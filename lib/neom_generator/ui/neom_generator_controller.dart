@@ -478,8 +478,8 @@ class NeomGeneratorController extends GetxController implements NeomGeneratorSer
         toStream: _audioStreamController?.sink, //
       );
 
-      // Stop the recorder after 10 seconds
-      Timer(Duration(seconds: 6), () {
+      // Stop the recorder after x seconds
+      Timer(Duration(seconds: NeomGeneratorConstants.sampleDuration), () {
         stopRecording();
         if((detectedFrequency) > 0) {
           setFrequency(detectedFrequency);

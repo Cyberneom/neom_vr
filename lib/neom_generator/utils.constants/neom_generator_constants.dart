@@ -10,5 +10,6 @@ class NeomGeneratorConstants {
   static const int recursiveCallTimerDurationMin  = 25;
   static const int sampleRate = 44100; // Define the sample rate
   static const int neededSamples = 2048;
+  static const int sampleDuration = 3; // Define the sample rate
 
 }
