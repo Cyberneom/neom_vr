@@ -28,12 +28,13 @@ import 'package:webview_flutter_platform_interface/webview_flutter_platform_inte
 
 import '../domain/use_cases/neom_generator_service.dart';
 import '../utils.constants/neom_generator_constants.dart';
-import '../vr_experimental/neom_360_viewer_controller.dart';
 
 class NeomGeneratorController extends GetxController implements NeomGeneratorService {
 
   final userController = Get.find<UserController>();
-  final neom360viewerController = Get.put(Neom360ViewerController());
+
+  ///EXPERIMENTAL
+  // final neom360viewerController = Get.put(Neom360ViewerController());
   final frequencyController = Get.put(FrequencyController());
 
   late SoundController soundController;

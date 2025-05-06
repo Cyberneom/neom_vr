@@ -3,5 +3,3 @@ dependency_overrides:
     path: ../neom_commons
   neom_frequencies:
     path: ../neom_frequencies
-#  uuid: 4.4.0
-#  rxdart: 0.28.0
