@@ -139,7 +139,7 @@ class ChamberPresetController extends GetxController implements ChamberPresetSer
             loadPresetsFromChamber();
           }
 
-          FirebaseMessagingCalls.sendGlobalPushNotification(
+          FirebaseMessagingCalls.sendPublicPushNotification(
               fromProfile: userController.profile,
               notificationType: PushNotificationType.chamberPresetAdded,
               referenceId: chamberPreset.id,

@@ -8,7 +8,7 @@ import 'package:neom_commons/core/utils/constants/app_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_route_constants.dart';
 import 'package:neom_commons/core/utils/constants/app_translation_constants.dart';
-import 'package:neom_commons/core/utils/enums/spotify_search_type.dart';
+import 'package:neom_commons/core/utils/enums/media_search_type.dart';
 
 import '../widgets/chamber_widgets.dart';
 import 'chamber_preset_controller.dart';

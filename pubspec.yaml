@@ -1,6 +1,6 @@
 name: neom_generator
 description: Neom Generator for Cyberneom.
-version: 1.2.0
+version: 1.2.1
 homepage: https://github.com/Cyberneom/neom_generator
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
