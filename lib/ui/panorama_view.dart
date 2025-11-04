@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:neom_core/core/app_config.dart';
+import 'package:neom_core/app_config.dart';
 import 'package:panorama/panorama.dart';
 import 'package:split_view/split_view.dart';
 
+import '../utils/constants/vr_constants.dart';
 
+///TOTALLY EXPERIMENTAL YET - JUST PLAYING AS VR MUST BE EVEN FOR SMARTPHONE VR USERS
 class PanoramaView extends StatelessWidget {
   const PanoramaView({super.key});
 
@@ -22,10 +24,10 @@ class PanoramaView extends StatelessWidget {
         controller: SplitViewController(limits: [null, WeightLimit(max: 0.5)]),
         children: [
           Panorama(
-            child: Image.network('https://image.shutterstock.com/z/stock-photo-connection-lines-around-earth-globe-futuristic-technology-theme-background-with-light-effect-d-549340267.jpg'),
+            child: Image.network(VrConstants.panoramaImageUrl1),
           ),
           Panorama(
-            child: Image.network('https://image.shutterstock.com/z/stock-photo-connection-lines-around-earth-globe-futuristic-technology-theme-background-with-light-effect-d-549340267.jpg'),
+            child: Image.network(VrConstants.panoramaImageUrl2),
           ),
         ],
       ),

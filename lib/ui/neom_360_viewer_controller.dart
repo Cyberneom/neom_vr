@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_custom_tabs/flutter_custom_tabs.dart';
 import 'package:get/get.dart';
-import 'package:neom_core/core/app_config.dart';
-import 'package:neom_core/core/data/implementations/user_controller.dart';
+import 'package:neom_core/app_config.dart';
+import 'package:neom_core/data/implementations/user_controller.dart';
 import 'package:video_360/video_360.dart';
 
-class Neom360ViewerController extends GetxController  {
+import '../domain/use_cases/neom_360_viewer_service.dart';
+import '../utils/constants/vr_constants.dart';
+
+///TOTALLY EXPERIMENTAL YET - JUST PLAYING AS VR MUST BE EVEN FOR SMARTPHONE VR USERS
+class Neom360ViewerController extends GetxController implements Neom360ViewerService {
 
   final neomUserController = Get.find<UserController>();
 
@@ -24,6 +28,7 @@ class Neom360ViewerController extends GetxController  {
     super.onInit();
   }
 
+  @override
   void onVideo360ViewCreated(Video360Controller controller) {
     this.controller = controller;
     controller2 = controller;
@@ -34,11 +39,13 @@ class Neom360ViewerController extends GetxController  {
     super.onClose();
   }
 
+  @override
+  Future<void> launchChromeVRView(BuildContext context, {String url = ''}) async {
 
-  Future<void> launchChromeVRView(BuildContext context, {String url = 'https://sbis04.github.io/demo360'}) async {
     try {
+      if(url.isEmpty) url = VrConstants.vrDemoUrl;
+
       await launchUrl(
-        // NOTE: Replace this URL with your GitHub Pages URL.
         Uri.parse(url),
         customTabsOptions: CustomTabsOptions(
           // toolbarColor: Theme.of(context).primaryColor,
@@ -61,6 +68,7 @@ class Neom360ViewerController extends GetxController  {
     }
   }
 
+  @override
   void setPlayInfoValue(Video360PlayInfo info) {
     durationText.value = info.duration.toString();
     totalText.value = info.total.toString();
