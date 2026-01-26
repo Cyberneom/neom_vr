@@ -1,8 +1,7 @@
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
-import '../../engine/neom_vr360_engine.dart';
+import '../../engine/neom_vr_360_engine.dart';
 
 /// Painter estereoscópico para VR headset (split-screen dual view)
 /// Renderiza la misma escena dos veces con separación interpupilar

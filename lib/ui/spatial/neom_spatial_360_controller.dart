@@ -1,18 +1,18 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-import '../../engine/neom_frequency_painter_engine.dart';
-import '../../engine/neom_vr360_engine.dart';
-import '../vr360/vr_mode.dart';
+import '../../engine/neom_vr_360_engine.dart';
+import '../../engine/neom_vr_painter_engine.dart';
 
 class NeomSpatial360Controller extends GetxController {
 
   late NeomVR360Engine vrEngine;
-  NeomFrequencyPainterEngine? painterEngine;
+  NeomVrPainterEngine? painterEngine;
 
   Timer? _animationTimer;
   StreamSubscription? _gyroSubscription;
@@ -43,10 +43,10 @@ class NeomSpatial360Controller extends GetxController {
     vrEngine = NeomVR360Engine();
 
     // Recibir el painter engine del generador
-    if (Get.arguments != null && Get.arguments is NeomFrequencyPainterEngine) {
+    if (Get.arguments != null && Get.arguments is NeomVrPainterEngine) {
       painterEngine = Get.arguments;
-    } else if (Get.isRegistered<NeomFrequencyPainterEngine>()) {
-      painterEngine = Get.find<NeomFrequencyPainterEngine>();
+    } else if (Get.isRegistered<NeomVrPainterEngine>()) {
+      painterEngine = Get.find<NeomVrPainterEngine>();
     }
 
     // Inicializar universo
@@ -60,6 +60,12 @@ class NeomSpatial360Controller extends GetxController {
   }
 
   void _initGyroscope() {
+    // En web no hay giroscopio disponible
+    if (kIsWeb) {
+      useGyroscope.value = false;
+      return;
+    }
+
     try {
       _gyroSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {
         if (!useGyroscope.value || !isRunning.value) return;

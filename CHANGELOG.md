@@ -1,3 +1,7 @@
+### 1.1.0 - Initial Release & Experimental VR Development
+This release is to start a new way of VR manipulation with painters and sensors instead of libraries
+to create basic neom functionalities instead of trying to get Youtube VR Videos.
+
 ### 1.0.0 - Initial Release & Experimental VR Development
 This release marks the initial official release (v1.0.0) of neom_vr as a new, independent and experimental module within the Open Neom ecosystem. This module is introduced to research and develop Virtual Reality (VR) functionalities, specifically focusing on democratizing VR for smartphone users.
 

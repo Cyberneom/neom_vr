@@ -1,18 +1,19 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
+import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-import '../../../engine/neom_frequency_painter_engine.dart';
-import '../../../engine/neom_vr360_engine.dart';
-import '../../utils/vr_mode.dart';
+import '../../../engine/neom_vr_360_engine.dart';
+import '../../engine/neom_vr_painter_engine.dart';
 
 /// Controlador para modo VR estereoscópico (visor con smartphone)
 class NeomVR360StereoController extends GetxController {
 
   late NeomVR360Engine vrEngine;
-  NeomFrequencyPainterEngine? painterEngine;
+  NeomVrPainterEngine? vrPainterEngine;
 
   Timer? _animationTimer;
   StreamSubscription? _gyroSubscription;
@@ -48,16 +49,16 @@ class NeomVR360StereoController extends GetxController {
   void onInit() {
     super.onInit();
 
-    VRMode.enable();
+    VrUtilities.enableVrMode();
 
     // Inicializar engine VR
     vrEngine = NeomVR360Engine();
 
     // Recibir el painter engine del generador
-    if (Get.arguments != null && Get.arguments is NeomFrequencyPainterEngine) {
-      painterEngine = Get.arguments;
-    } else if (Get.isRegistered<NeomFrequencyPainterEngine>()) {
-      painterEngine = Get.find<NeomFrequencyPainterEngine>();
+    if (Get.arguments != null && Get.arguments is NeomVrPainterEngine) {
+      vrPainterEngine = Get.arguments;
+    } else if (Get.isRegistered<NeomVrPainterEngine>()) {
+      vrPainterEngine = Get.find<NeomVrPainterEngine>();
     }
 
     // Inicializar universo OPTIMIZADO para VR (menos partículas = más fluido)
@@ -94,6 +95,12 @@ class NeomVR360StereoController extends GetxController {
   }
 
   void _initGyroscope() {
+    // En web no hay giroscopio disponible
+    if (kIsWeb) {
+      useGyroscope.value = false;
+      return;
+    }
+
     try {
       _gyroSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {
         if (_isCalibrating) {
@@ -134,13 +141,13 @@ class NeomVR360StereoController extends GetxController {
       lastTime = now;
 
       // Sincronizar con audio del painterEngine
-      if (painterEngine != null) {
+      if (vrPainterEngine != null) {
         vrEngine.updateAudio(
-          amplitude: painterEngine!.waveHeight,
+          amplitude: vrPainterEngine!.waveHeight,
           frequency: frequency.value,
-          beat: painterEngine!.binauralPhase * 10,
-          phase: painterEngine!.visualPhase,
-          coherence: painterEngine!.hemisphericCoherence,
+          beat: vrPainterEngine!.binauralPhase * 10,
+          phase: vrPainterEngine!.visualPhase,
+          coherence: vrPainterEngine!.hemisphericCoherence,
           waveLen: wavelength.value,
         );
       } else {
@@ -268,7 +275,6 @@ class NeomVR360StereoController extends GetxController {
   }
 
   void exitFullscreen() {
-    Get.back();
     Get.back();
   }
 }

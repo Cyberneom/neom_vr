@@ -1,8 +1,7 @@
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
-import '../../engine/neom_vr360_engine.dart';
+import '../../engine/neom_vr_360_engine.dart';
 
 class NeomVR360Painter extends CustomPainter {
   final NeomVR360Engine engine;
@@ -117,7 +116,7 @@ class NeomVR360Painter extends CustomPainter {
   }
 
   void _drawNebula(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    // final center = Offset(size.width / 2, size.height / 2);
 
     // Nebulosa 1
     final nebula1 = Paint()

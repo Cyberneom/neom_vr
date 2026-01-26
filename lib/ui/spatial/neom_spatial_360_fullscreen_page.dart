@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:neom_commons/ui/theme/app_color.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
-import 'package:neom_core/utils/constants/app_route_constants.dart';
 
-import '../painters/neom_vr360_painter.dart';
+import '../painters/neom_spatial_painter.dart';
 import 'neom_spatial_360_controller.dart';
-import '../vr360/vr_mode.dart';
 
 class NeomSpatial360FullscreenPage extends StatelessWidget {
   const NeomSpatial360FullscreenPage({super.key});
@@ -34,6 +32,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
           },
           // Tap para pausar
           onTap: controller.toggleSimulation,
+          onLongPress: () => Get.back(),
           // Double tap para reset
           onDoubleTap: controller.resetCamera,
           child: Stack(
@@ -140,48 +139,13 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
               ),
 
               // Botón VR Headset Mode (estereoscópico)
-              Positioned(
-                top: 10,
-                right: 70,
-                child: _buildVRHeadsetButton(controller),
-              ),
+              // Positioned(
+              //   top: 10,
+              //   right: 70,
+              //   child: _buildVRHeadsetButton(controller),
+              // ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVRHeadsetButton(NeomSpatial360Controller controller) {
-    return GestureDetector(
-      onTap: () {
-        // Navegar al modo VR estereoscópico
-        Get.toNamed(
-          AppRouteConstants.vr360StereoFullscreen,
-          arguments: controller.painterEngine,
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColor.bondiBlue.withOpacity(0.5)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.vrpano, color: AppColor.bondiBlue, size: 16),
-            const SizedBox(width: 6),
-            const Text(
-              'VR HEADSET',
-              style: TextStyle(
-                color: AppColor.bondiBlue,
-                fontSize: 10,
-                letterSpacing: 1,
-              ),
-            ),
-          ],
         ),
       ),
     );

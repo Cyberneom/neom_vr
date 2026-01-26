@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:neom_commons/ui/theme/app_color.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 
-import 'vr_stereo/neom_vr360_stereo_controller.dart';
-import '../utils/vr_mode.dart';
-import 'painters/neom_vr360_stereo_painter.dart';
+import '../painters/neom_vr360_stereo_painter.dart';
+import 'neom_vr360_stereo_controller.dart';
 
 /// Página VR estereoscópica para visores con smartphone dentro
 /// Vista dividida (split-screen) para ojo izquierdo y derecho
