@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
+// import 'package:sint/sint.dart';
 // import 'package:neom_commons/ui/theme/app_color.dart';
 // import 'package:neom_commons/ui/widgets/appbar_child.dart';
 // import 'package:neom_commons/utils/constants/translations/app_translation_constants.dart';
@@ -19,7 +19,7 @@
 //     var width = MediaQuery.of(context).size.width;
 //     var height = MediaQuery.of(context).size.height;
 //
-//     return GetBuilder<Neom360ViewerController>(
+//     return SintBuilder<Neom360ViewerController>(
 //         builder: (controller) => Scaffold(
 //       appBar: AppBarChild(title: VrTranslationConstants.viewerTitle.tr),
 //       body: Stack(

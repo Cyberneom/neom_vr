@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sint/sint.dart';
 import 'package:neom_commons/ui/theme/app_color.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 
@@ -34,7 +34,7 @@ class _NeomVR360StereoPageState extends State<NeomVR360StereoPage> {
   Widget build(BuildContext context) {
     // Forzar orientación cada vez que se reconstruye
 
-    return GetBuilder<NeomVR360StereoController>(
+    return SintBuilder<NeomVR360StereoController>(
       id: AppPageIdConstants.vr360,
       init: NeomVR360StereoController(),
       builder: (controller) => Scaffold(

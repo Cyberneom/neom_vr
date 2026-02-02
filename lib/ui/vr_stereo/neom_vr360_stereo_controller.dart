@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+import 'package:sint/sint.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -10,7 +10,7 @@ import '../../../engine/neom_vr_360_engine.dart';
 import '../../engine/neom_vr_painter_engine.dart';
 
 /// Controlador para modo VR estereoscópico (visor con smartphone)
-class NeomVR360StereoController extends GetxController {
+class NeomVR360StereoController extends SintController {
 
   late NeomVR360Engine vrEngine;
   NeomVrPainterEngine? vrPainterEngine;
@@ -55,10 +55,10 @@ class NeomVR360StereoController extends GetxController {
     vrEngine = NeomVR360Engine();
 
     // Recibir el painter engine del generador
-    if (Get.arguments != null && Get.arguments is NeomVrPainterEngine) {
-      vrPainterEngine = Get.arguments;
-    } else if (Get.isRegistered<NeomVrPainterEngine>()) {
-      vrPainterEngine = Get.find<NeomVrPainterEngine>();
+    if (Sint.arguments != null && Sint.arguments is NeomVrPainterEngine) {
+      vrPainterEngine = Sint.arguments;
+    } else if (Sint.isRegistered<NeomVrPainterEngine>()) {
+      vrPainterEngine = Sint.find<NeomVrPainterEngine>();
     }
 
     // Inicializar universo OPTIMIZADO para VR (menos partículas = más fluido)
@@ -275,6 +275,6 @@ class NeomVR360StereoController extends GetxController {
   }
 
   void exitFullscreen() {
-    Get.back();
+    Sint.back();
   }
 }

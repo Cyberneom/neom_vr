@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+import 'package:sint/sint.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -9,7 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../engine/neom_vr_360_engine.dart';
 import '../../engine/neom_vr_painter_engine.dart';
 
-class NeomSpatial360Controller extends GetxController {
+class NeomSpatial360Controller extends SintController {
 
   late NeomVR360Engine vrEngine;
   NeomVrPainterEngine? painterEngine;
@@ -43,10 +43,10 @@ class NeomSpatial360Controller extends GetxController {
     vrEngine = NeomVR360Engine();
 
     // Recibir el painter engine del generador
-    if (Get.arguments != null && Get.arguments is NeomVrPainterEngine) {
-      painterEngine = Get.arguments;
-    } else if (Get.isRegistered<NeomVrPainterEngine>()) {
-      painterEngine = Get.find<NeomVrPainterEngine>();
+    if (Sint.arguments != null && Sint.arguments is NeomVrPainterEngine) {
+      painterEngine = Sint.arguments;
+    } else if (Sint.isRegistered<NeomVrPainterEngine>()) {
+      painterEngine = Sint.find<NeomVrPainterEngine>();
     }
 
     // Inicializar universo
@@ -204,6 +204,6 @@ class NeomSpatial360Controller extends GetxController {
   }
 
   void exitFullscreen() {
-    Get.back();
+    Sint.back();
   }
 }

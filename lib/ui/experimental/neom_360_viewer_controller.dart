@@ -2,7 +2,7 @@
 //
 // import 'package:flutter/material.dart';
 // import 'package:flutter_custom_tabs/flutter_custom_tabs.dart';
-// import 'package:get/get.dart';
+// import 'package:sint/sint.dart';
 // import 'package:neom_core/app_config.dart';
 // import 'package:neom_core/data/implementations/user_controller.dart';
 // import 'package:video_360/video_360.dart';
@@ -11,9 +11,9 @@
 // import '../../utils/constants/vr_constants.dart';
 //
 // ///TOTALLY EXPERIMENTAL YET - JUST PLAYING AS VR MUST BE EVEN FOR SMARTPHONE VR USERS
-// class Neom360ViewerController extends GetxController implements Neom360ViewerService {
+// class Neom360ViewerController extends SintController implements Neom360ViewerService {
 //
-//   final neomUserController = Get.find<UserController>();
+//   final neomUserController = Sint.find<UserController>();
 //
 //   late Video360Controller controller;
 //   late Video360Controller controller2;

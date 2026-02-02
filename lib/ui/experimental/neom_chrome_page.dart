@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
+// import 'package:sint/sint.dart';
 // import 'package:neom_commons/utils/constants/translations/app_translation_constants.dart';
 //
 // import '../../utils/constants/vr_translation_constants.dart';
@@ -11,7 +11,7 @@
 //
 //   @override
 //   Widget build(BuildContext context) {
-//     return GetBuilder<Neom360ViewerController>(
+//     return SintBuilder<Neom360ViewerController>(
 //         builder: (controller) => Scaffold(
 //         body: Container(
 //           color: Colors.blue,

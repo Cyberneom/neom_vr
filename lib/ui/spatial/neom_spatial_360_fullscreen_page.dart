@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sint/sint.dart';
 import 'package:neom_commons/ui/theme/app_color.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 
@@ -11,7 +11,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetBuilder<NeomSpatial360Controller>(
+    return SintBuilder<NeomSpatial360Controller>(
       id: AppPageIdConstants.spatial360,
       init: NeomSpatial360Controller(),
       builder: (controller) => Scaffold(
@@ -32,7 +32,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
           },
           // Tap para pausar
           onTap: controller.toggleSimulation,
-          onLongPress: () => Get.back(),
+          onLongPress: () => Sint.back(),
           // Double tap para reset
           onDoubleTap: controller.resetCamera,
           child: Stack(

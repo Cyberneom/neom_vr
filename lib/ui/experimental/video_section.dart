@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
+// import 'package:sint/sint.dart';
 // import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 // import 'package:neom_core/app_config.dart';
 // import 'package:split_view/split_view.dart';
@@ -14,7 +14,7 @@
 //
 //   @override
 //   Widget build(BuildContext context) {
-//     return GetBuilder<Neom360ViewerController>(
+//     return SintBuilder<Neom360ViewerController>(
 //       id: AppPageIdConstants.viewer360,
 //       init: Neom360ViewerController(),
 //     builder: (controller) => Scaffold(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sint/sint.dart';
 import 'package:neom_commons/ui/theme/app_color.dart';
 import 'package:neom_core/utils/constants/app_route_constants.dart';
 
@@ -9,7 +9,7 @@ Widget buildVRHeadsetButton(NeomSpatial360Controller controller) {
   return GestureDetector(
     onTap: () {
       // Navegar al modo VR estereoscópico
-      Get.toNamed(
+      Sint.toNamed(
         AppRouteConstants.vr360StereoFullscreen,
         arguments: controller.painterEngine,
       );
