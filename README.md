@@ -1,88 +1,182 @@
-#neom_vr
-neom_vr is an experimental module within the Open Neom ecosystem, dedicated to researching
-and developing Virtual Reality (VR) functionalities specifically tailored for smartphone VR users.
-Our core philosophy is that VR must be democratized and made accessible to everyone,
-not just those with expensive high-end equipment. This module explores novel ways to deliver
-immersive experiences using readily available mobile devices.
+# neom_vr
 
-This module serves as a sandbox for R&D in mobile VR, investigating how to integrate immersive
-content (360 videos, panoramas) and potentially biofeedback data within a smartphone-centric VR environment.
-It aims to push the boundaries of what's possible with accessible VR, aligning with the Tecnozenism vision
-of harmonizing technology with conscious experience for all. neom_vr adheres to Open Neom's Clean Architecture
-principles where possible, ensuring its experimental nature doesn't compromise the overall project's integrity.
-It integrates with neom_core for core services and neom_commons for shared UI components,
-providing a foundation for future, more robust VR features.
+An experimental Virtual Reality module for Flutter applications, part of the Open Neom ecosystem. Focused on democratizing VR for smartphone users without expensive equipment.
 
-🌟 Features & Responsibilities
-In its current version (v1.0.0), neom_vr experimentally offers:
-•	360 Video Playback: Provides functionalities for playing immersive 360-degree videos
-    (Neom360ViewerPage, VideoSection), allowing users to look around the virtual environment by moving their phone.
-•	Panoramic Image Viewer: Enables viewing of 360-degree panoramic images (PanoramaView), offering a static immersive experience.
-•	Smartphone VR Split View: Utilizes split_view to create a side-by-side display, mimicking the stereoscopic view
-    required for VR headsets (like Google Cardboard or similar smartphone VR viewers).
-•	External VR Browser Integration: Includes experimental functionality (NeomChromePage) to launch external
-    web-based VR experiences (e.g., WebVR/WebXR demos) in a custom tab or browser.
-•	Playback Controls: Offers basic playback controls for 360 videos (play, stop, reset, seek).
-•	Experimental R&D: Serves as a testbed for integrating various VR libraries and exploring their capabilities on mobile.
+## Current Version: 1.2.0
 
-Future Expansion (Roadmap)
-As an experimental module, neom_vr has an ambitious long-term roadmap that aims to achieve functionalities similar 
-to advanced VR platforms, but optimized for smartphones:
-•	Enhanced 360/VR Content Integration: Seamless integration of VR content into the main Open Neom timeline and user profiles.
-•	Interactive VR Experiences: Development of simple interactive VR scenes and guided meditations within the app.
-•	Biofeedback Visualization in VR: Displaying real-time biofeedback data (e.g., from EEG wearables)
-    as visual elements within the VR environment.
-•	Spatial Audio Integration: Implementing immersive 3D audio to enhance VR experiences.
-•	VR Navigation & UI: Designing intuitive VR-specific navigation and user interfaces for smartphone users.
-•	Custom VR Environments: Allowing users to create or customize their own VR spaces for meditation or focus.
-•	Multiplayer VR (Basic): Exploring basic shared VR experiences for guided group meditations or collaborative research.
-•	Performance Optimization: Continuous research into optimizing VR rendering and processing for low-power mobile devices.
+## Philosophy
 
-🛠 Technical Highlights / Why it Matters (for developers)
-For developers, neom_vr serves as an excellent case study for:
-•	Experimental Library Integration: Demonstrates how to integrate and experiment with cutting-edge
-    (and sometimes less stable) VR-focused Flutter packages like panorama, video_360, and split_view.
-•	Mobile VR Development: Provides practical examples of implementing smartphone-based VR experiences,
-    including stereoscopic split views.
-•	GetX for State Management: Utilizes GetX's Neom360ViewerController for managing reactive state
-    related to VR playback and controls.
-•	Service Layer Integration: It is designed to implement a Neom360ViewerService interface (defined in neom_core),
-    showcasing how experimental functionalities can be exposed through an abstraction.
-•	Platform Integration (Custom Tabs): Demonstrates launching external URLs in custom browser tabs for WebVR experiences.
-•	Performance Challenges: Highlights the unique performance considerations and optimizations required for mobile VR development.
-•	R&D Mindset: Encourages an experimental and research-driven approach to solving complex technical challenges.
+**VR must be accessible to everyone.** We believe immersive experiences shouldn't require expensive headsets. neom_vr explores novel ways to deliver VR using readily available mobile devices.
 
-How it Supports the Open Neom Initiative
-neom_vr is vital to the Open Neom ecosystem and the broader Tecnozenism vision by:
-•	Democratizing Immersive Experiences: Directly addresses the goal of making VR accessible to a wider audience,
-    aligning with the core philosophy of Open Neom.
-•	Pioneering Conscious Technology: Explores how VR can be leveraged for deeper states of meditation, biofeedback visualization,
-    and conscious engagement, pushing the boundaries of Tecnozenism.
-•	Driving Research & Innovation: Serves as a key module for R&D in neuroscience & digital health,
-    providing a platform for experimenting with immersive data visualization and therapeutic VR.
-•	Enhancing User Engagement: Offers novel and highly engaging ways for users to interact
-    with content and experience digital well-being.
-•	Showcasing Ambitious Vision: As an experimental module, it demonstrates Open Neom's commitment to exploring future
-    technologies and their application for human flourishing.
+## Features
 
-🚀 Usage
-This module provides routes and UI components for various VR experiences (Neom360ViewerPage, PanoramaView, NeomChromePage,
-VideoSection). It is typically accessed from experimental sections of the application or as a proof-of-concept for future integrations.
+### Current Capabilities (v1.2.0)
+- **Custom Painter Engine**: Native VR rendering without external library dependencies
+- **Sensor-Based Navigation**: Uses device sensors (accelerometer, gyroscope) for head tracking
+- **360 Spatial Viewer**: Immersive panoramic content viewing
+- **Stereo VR Mode**: Split-screen for Google Cardboard-style headsets
+- **Fullscreen Experience**: Optimized immersive viewing
 
-📦 Dependencies
-neom_vr relies on neom_core for core services and data models, and on neom_commons for reusable UI components and utilities.
-It directly depends on flutter_custom_tabs, panorama, video_360, and split_view for its core VR functionalities.
+## Installation
 
-🤝 Contributing
-We welcome contributions to the neom_vr module! If you're passionate about Virtual Reality, mobile optimization,
-immersive experiences, or pioneering new applications for conscious technology, your contributions can significantly
-shape the future of Open Neom's most ambitious features. This is a module for innovators and researchers.
+```yaml
+dependencies:
+  neom_vr:
+    git:
+      url: git@github.com:Cyberneom/neom_vr.git
+```
 
-To understand the broader architectural context of Open Neom and how neom_vr fits into the overall vision of Tecnozenism,
-please refer to the main project's MANIFEST.md.
+## Usage
 
-For guidance on how to contribute to Open Neom and to understand the various levels of learning and engagement possible
-within the project, consult our comprehensive guide: Learning Flutter Through Open Neom: A Comprehensive Path.
+```dart
+import 'package:neom_vr/vr_routes.dart';
 
-📄 License
-This project is licensed under the Apache License, Version 2.0, January 2004. See the LICENSE file for details.
+// Navigate to 360 spatial viewer
+Navigator.pushNamed(context, VrRoutes.spatial360);
+
+// Navigate to stereo VR mode
+Navigator.pushNamed(context, VrRoutes.vrStereo);
+```
+
+---
+
+## ROADMAP 2026: Accessible VR Platform
+
+Our vision is to create a **world-class mobile VR platform** that makes immersive experiences accessible to everyone with a smartphone.
+
+### Q1 2026: Core Engine Enhancement
+
+#### Rendering Engine
+- [ ] **GPU-Accelerated Rendering** - Custom shader-based 360 projection
+- [ ] **Optimized Painter Engine** - 60 FPS on mid-range devices
+- [ ] **LOD System** - Level of detail for performance scaling
+- [ ] **Texture Streaming** - Progressive loading for large panoramas
+- [ ] **Anti-Aliasing** - MSAA/FXAA for smoother edges
+
+#### Sensor Fusion
+- [ ] **Advanced IMU Processing** - Kalman filter for smooth tracking
+- [ ] **Magnetic Calibration** - Compass integration for absolute orientation
+- [ ] **Drift Correction** - Long-session stability
+- [ ] **Low-Latency Pipeline** - <20ms motion-to-photon
+- [ ] **Prediction Algorithm** - Compensate for rendering latency
+
+### Q2 2026: Content & Formats
+
+#### Media Support
+- [ ] **360 Video Playback** - Equirectangular and cubemap formats
+- [ ] **8K Support** - High-resolution panoramic videos
+- [ ] **Spatial Audio** - 3D positional audio tied to head tracking
+- [ ] **Live Streaming** - Real-time 360 content
+- [ ] **Offline Caching** - Download VR content for offline viewing
+
+#### Content Types
+- [ ] **Photo Spheres** - High-resolution panoramic images
+- [ ] **Virtual Tours** - Multi-room navigation with hotspots
+- [ ] **360 Stories** - Interactive narrative experiences
+- [ ] **VR Galleries** - Art and photography exhibitions
+
+### Q3 2026: Interactive Experiences
+
+#### User Interaction
+- [ ] **Gaze-Based Selection** - Look-to-select UI
+- [ ] **Cardboard Button Support** - Physical trigger input
+- [ ] **Voice Commands** - Hands-free navigation
+- [ ] **Gesture Recognition** - Camera-based hand tracking (experimental)
+
+#### Guided Experiences
+- [ ] **VR Meditation** - Immersive mindfulness environments
+- [ ] **Breathing Exercises** - Visual breath guides in VR
+- [ ] **Nature Escapes** - Calming virtual environments
+- [ ] **Focus Spaces** - Distraction-free work environments
+
+### Q4 2026: Advanced Features & AI
+
+#### Biofeedback Integration
+- [ ] **Heart Rate Visualization** - Real-time HRV display in VR
+- [ ] **EEG Integration** - Brainwave visualization (with compatible devices)
+- [ ] **Stress Response** - Environment adapts to user state
+- [ ] **Session Analytics** - Track relaxation progress over time
+
+#### AI-Powered Features
+- [ ] **Auto-Generated Environments** - AI creates calming scenes
+- [ ] **Personalized Experiences** - Content adapts to preferences
+- [ ] **Smart Recommendations** - Suggest VR content based on mood
+- [ ] **Voice-Guided Sessions** - AI narration for meditation
+
+#### Social VR (Experimental)
+- [ ] **Shared Viewing** - Watch 360 content together
+- [ ] **Virtual Rooms** - Basic avatar presence
+- [ ] **Group Meditation** - Synchronized guided sessions
+
+### Technical Architecture Goals
+
+```
+lib/
+├── core/
+│   ├── engine/
+│   │   ├── vr_painter_engine.dart     # Custom 360 rendering
+│   │   ├── projection_math.dart       # Equirectangular/cubemap math
+│   │   ├── shader_programs.dart       # GPU shaders
+│   │   └── texture_manager.dart       # Efficient texture handling
+│   ├── sensors/
+│   │   ├── imu_processor.dart         # Accelerometer + Gyroscope
+│   │   ├── sensor_fusion.dart         # Kalman filter implementation
+│   │   └── drift_correction.dart      # Long-session stability
+│   └── audio/
+│       ├── spatial_audio.dart         # 3D positional audio
+│       └── ambisonic_decoder.dart     # Surround sound support
+├── features/
+│   ├── viewer_360/                    # Panoramic viewer
+│   ├── video_360/                     # 360 video player
+│   ├── stereo_vr/                     # Cardboard-style split view
+│   ├── interactive/                   # Gaze selection, hotspots
+│   ├── meditation/                    # Guided VR experiences
+│   └── biofeedback/                   # Health data visualization
+└── ui/
+    ├── vr_scaffold.dart               # Base VR page structure
+    ├── gaze_pointer.dart              # Look-to-select cursor
+    └── vr_controls.dart               # In-VR UI elements
+```
+
+### Performance Targets
+- **Frame Rate**: 60 FPS sustained on mid-range devices
+- **Motion-to-Photon**: <20ms latency
+- **Memory Usage**: <300MB for 4K content
+- **Battery Impact**: <15% per hour of use
+- **Startup Time**: <2s to immersive view
+- **Thermal**: No throttling for 30min sessions
+
+### Device Compatibility Goals
+
+| Tier | Devices | Features |
+|------|---------|----------|
+| High | Flagship (2024+) | Full 8K, spatial audio, all effects |
+| Medium | Mid-range (2022+) | 4K content, basic audio, core effects |
+| Low | Budget (2020+) | 2K content, mono audio, essential VR |
+
+### Competitive Positioning
+
+| Feature | neom_vr (2026) | YouTube VR | Google Cardboard | Within |
+|---------|----------------|------------|------------------|--------|
+| Custom Engine | Yes | No | No | No |
+| Meditation Focus | Yes | No | No | Yes |
+| Biofeedback | Yes | No | No | No |
+| Offline Mode | Yes | Limited | Yes | Yes |
+| Open Source | Yes | No | Partial | No |
+| No Ads | Yes | No | N/A | Freemium |
+
+---
+
+## Dependencies
+
+- `neom_core` - Core services and configuration
+- `neom_commons` - Shared UI components
+- `sensors_plus` - Device sensor access
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
+
+---
+
+**Open Neom** - Democratizing VR for conscious digital experiences.

@@ -1,3 +1,41 @@
+### 1.2.0 - Custom Painter Engine & Enhanced VR Experience
+
+This release represents a major evolution towards a fully custom VR rendering solution, moving away from external library dependencies.
+
+**Key Changes:**
+
+**Custom Painter Engine:**
+- Introduced `NeomVrPainterEngine` - a native Flutter CustomPainter for 360° rendering
+- Removed dependency on external panorama and video_360 libraries
+- Equirectangular projection math implemented from scratch
+- Foundation for GPU-accelerated rendering in future releases
+
+**Sensor-Based Navigation:**
+- Enhanced `NeomSpatial360Controller` with improved sensor fusion
+- Better accelerometer and gyroscope integration for head tracking
+- Smoother orientation updates with optimized sensor event handling
+- Groundwork for Kalman filter implementation (Q1 2026)
+
+**Stereo VR Mode:**
+- Improved `NeomVr360StereoPage` for Google Cardboard-style viewing
+- Split-screen rendering with proper eye separation
+- Fullscreen immersive experience optimization
+
+**Architecture Improvements:**
+- Reorganized route structure in `vr_routes.dart`
+- Centralized VR widgets in `vr_widgets.dart`
+- Updated to flutter_lints ^5.0.0
+- SDK constraint updated to >=3.8.0 <4.0.0
+- sensors_plus upgraded to ^6.1.1
+
+**Documentation:**
+- Comprehensive ROADMAP 2026 added to README.md
+- Technical architecture goals defined
+- Performance targets established (60 FPS, <20ms latency)
+- Device compatibility tiers documented
+
+---
+
 ### 1.1.0 - Initial Release & Experimental VR Development
 This release is to start a new way of VR manipulation with painters and sensors instead of libraries
 to create basic neom functionalities instead of trying to get Youtube VR Videos.

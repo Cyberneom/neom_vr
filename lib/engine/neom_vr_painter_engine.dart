@@ -129,6 +129,8 @@ class NeomVrPainterEngine extends ChangeNotifier {
     if (beatHz <= 0) return;
 
     _binauralBeat = beatHz;
+    AppConfig.logger.d('NeomFrequencyPainterEngine.tickBinaural: beat=$_binauralBeat');
+
     _binauralPhase += dt * beatHz * 2 * pi * 0.25; // lento, perceptual
     _binauralPhase %= (2 * pi);
 
