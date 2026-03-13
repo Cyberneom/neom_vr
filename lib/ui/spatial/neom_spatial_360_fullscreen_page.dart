@@ -15,7 +15,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
       id: AppPageIdConstants.spatial360,
       init: NeomSpatial360Controller(),
       builder: (controller) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColor.darkBackground,
         body: GestureDetector(
           // Touch para mover cámara (cuando no hay giroscopio)
           onPanStart: (details) {
@@ -85,7 +85,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.pause, color: AppColor.bondiBlue, size: 16),
+                          Icon(Icons.pause, color: Colors.white, size: 16),
                           const SizedBox(width: 8),
                           Text(
                             'PAUSED',

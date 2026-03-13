@@ -38,7 +38,7 @@ class _NeomVR360StereoPageState extends State<NeomVR360StereoPage> {
       id: AppPageIdConstants.vr360,
       init: NeomVR360StereoController(),
       builder: (controller) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColor.darkBackground,
         body: GestureDetector(
           onPanStart: (details) {
             controller.onPanStart(
@@ -118,7 +118,7 @@ class _NeomVR360StereoPageState extends State<NeomVR360StereoPage> {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.pause_circle_outline, color: AppColor.bondiBlue, size: 24),
+                    Icon(Icons.pause_circle_outline, color: Colors.white, size: 24),
                     SizedBox(width: 10),
                     Text(
                       'VR PAUSED',
@@ -416,7 +416,7 @@ class _NeomVR360StereoPageState extends State<NeomVR360StereoPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.vrpano, color: AppColor.bondiBlue.withAlpha(179), size: 12),
+              Icon(Icons.vrpano, color: Colors.white.withAlpha(179), size: 12),
               const SizedBox(width: 5),
               Text(
                 'VR HEADSET',

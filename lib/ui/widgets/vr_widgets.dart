@@ -24,7 +24,7 @@ Widget buildVRHeadsetButton(NeomSpatial360Controller controller) {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.vrpano, color: AppColor.bondiBlue, size: 16),
+          Icon(Icons.vrpano, color: Colors.white, size: 16),
           const SizedBox(width: 6),
           const Text(
             'VR HEADSET',
