@@ -26,8 +26,11 @@ dependencies:
 #  split_view: ^3.2.1
   #vr_player: ^0.2.0
 
-  #Sensors for VR experience
-  sensors_plus: ^6.1.1
+  #VR Engine + SINT VR
+  vrlizate:
+    path: ../vrlizate
+  sint_vr:
+    path: ../sint_vr
 
 dev_dependencies:
   flutter_test:
