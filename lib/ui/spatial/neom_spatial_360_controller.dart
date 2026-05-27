@@ -43,8 +43,8 @@ class NeomSpatial360Controller extends SintController {
     vrEngine.initialize();
 
     // Head tracking via sint_vr
-    headTracker = HeadTracker(
-      camera: vrEngine.camera,
+    headTracker = HeadTracker.forCamera(
+      vrEngine.camera,
       sensitivity: gyroSensitivity.value,
     );
 

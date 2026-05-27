@@ -6,4 +6,6 @@ dependency_overrides:
   neom_commons:
     path: ../../main/neom_commons
   neom_frequencies:
-    path: ../neom_frequencies
+    path: ../../neom/neom_frequencies
+  vrlizate:
+    path: /Users/serzen/codebase_vr/vrlizate

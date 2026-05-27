@@ -40,16 +40,10 @@ class _NeomVR360StereoPageState extends State<NeomVR360StereoPage> {
       builder: (controller) => Scaffold(
         backgroundColor: AppColor.darkBackground,
         body: GestureDetector(
-          onPanStart: (details) {
-            controller.onPanStart(
-              details.localPosition.dx,
-              details.localPosition.dy,
-            );
-          },
           onPanUpdate: (details) {
             controller.onPanUpdate(
-              details.localPosition.dx,
-              details.localPosition.dy,
+              details.delta.dx,
+              details.delta.dy,
             );
           },
           onTap: controller.toggleSimulation,

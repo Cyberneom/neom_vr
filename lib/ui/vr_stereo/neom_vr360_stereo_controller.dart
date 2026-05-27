@@ -55,8 +55,8 @@ class NeomVR360StereoController extends SintController {
     vrEngine.camera.autoRotateSpeed = 0; // Solo giroscopio en VR
 
     // Head tracking via sint_vr
-    headTracker = HeadTracker(
-      camera: vrEngine.camera,
+    headTracker = HeadTracker.forCamera(
+      vrEngine.camera,
       sensitivity: gyroSensitivity.value,
     );
 

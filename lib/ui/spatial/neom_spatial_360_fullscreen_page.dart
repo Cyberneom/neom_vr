@@ -18,16 +18,10 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
         backgroundColor: AppColor.darkBackground,
         body: GestureDetector(
           // Touch para mover cámara (cuando no hay giroscopio)
-          onPanStart: (details) {
-            controller.onPanStart(
-              details.localPosition.dx,
-              details.localPosition.dy,
-            );
-          },
           onPanUpdate: (details) {
             controller.onPanUpdate(
-              details.localPosition.dx,
-              details.localPosition.dy,
+              details.delta.dx,
+              details.delta.dy,
             );
           },
           // Tap para pausar
