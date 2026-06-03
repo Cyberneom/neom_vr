@@ -3,14 +3,14 @@ import 'package:neom_core/utils/constants/app_route_constants.dart';
 import 'package:sint/sint.dart';
 
 import 'ui/spatial/neom_spatial_360_fullscreen_page.dart' deferred as spatial;
-import 'ui/vr_stereo/neom_vr360_stereo_page.dart' deferred as vrStereo;
+import 'ui/vr_stereo/neom_vr360_stereo_page.dart' deferred as vr_stereo;
 
 class VrRoutes {
 
   static final List<SintPage<dynamic>> routes = [
     SintPage(
         name: AppRouteConstants.vr360StereoFullscreen,
-        page: () => DeferredLoader(vrStereo.loadLibrary, () => vrStereo.NeomVR360StereoPage()),
+        page: () => DeferredLoader(vr_stereo.loadLibrary, () => vr_stereo.NeomVR360StereoPage()),
         transition: Transition.fadeIn
     ),
     SintPage(

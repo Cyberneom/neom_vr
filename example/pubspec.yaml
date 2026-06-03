@@ -1,0 +1,38 @@
+name: neom_vr_example
+description: "An example application demonstrating how to use the neom_vr module."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sint: ^1.3.0
+  neom_core: ^2.0.0
+  neom_commons: ^2.0.0
+  vrlizate: ^1.1.0
+  neom_vr:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+dependency_overrides:
+  sint:
+    path: ../../../framework/sint
+  neom_core:
+    path: ../../../main/neom_core
+  neom_commons:
+    path: ../../../main/neom_commons
+  neom_frequencies:
+    path: ../../../neom/neom_frequencies
+  vrlizate:
+    path: ../../vrlizate
+
+flutter:
+  uses-material-design: true

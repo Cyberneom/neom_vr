@@ -8,4 +8,4 @@ dependency_overrides:
   neom_frequencies:
     path: ../../neom/neom_frequencies
   vrlizate:
-    path: /Users/serzen/codebase_vr/vrlizate
+    path: ../vrlizate

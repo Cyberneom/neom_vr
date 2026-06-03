@@ -6,7 +6,12 @@ import 'package:sint/sint.dart';
 import '../painters/neom_spatial_painter.dart';
 import 'neom_spatial_360_controller.dart';
 
+/// Página a pantalla completa que renderiza la escena espacial VR 360 grados interactiva.
+///
+/// Soporta controles táctiles (deslizar y doble toque) y seguimiento
+/// dinámico de cabeza utilizando fusión de sensores de giroscopio físico.
 class NeomSpatial360FullscreenPage extends StatelessWidget {
+  /// Constructor base para crear la vista a pantalla completa de simulación espacial 360.
   const NeomSpatial360FullscreenPage({super.key});
 
   @override
@@ -55,7 +60,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       width: 1,
                     ),
                   ),
@@ -74,7 +79,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.black54,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColor.bondiBlue.withOpacity(0.5)),
+                        border: Border.all(color: AppColor.bondiBlue.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -224,7 +229,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
         width: 50,
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColor.bondiBlue.withOpacity(0.3) : Colors.black54,
+          color: isActive ? AppColor.bondiBlue.withValues(alpha: 0.3) : Colors.black54,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isActive ? AppColor.bondiBlue : Colors.white12),
         ),
@@ -291,7 +296,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
           decoration: BoxDecoration(
-            color: AppColor.bondiBlue.withOpacity(0.2),
+            color: AppColor.bondiBlue.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
@@ -318,8 +323,8 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
           color: controller.useGyroscope.value
-              ? Colors.green.withOpacity(0.5)
-              : Colors.orange.withOpacity(0.5),
+              ? Colors.green.withValues(alpha: 0.5)
+              : Colors.orange.withValues(alpha: 0.5),
         ),
       ),
       child: Row(
@@ -366,7 +371,7 @@ class NeomSpatial360FullscreenPage extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 3),
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: isSelected ? colors[i].withOpacity(0.3) : Colors.transparent,
+                color: isSelected ? colors[i].withValues(alpha: 0.3) : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isSelected ? colors[i] : Colors.transparent,

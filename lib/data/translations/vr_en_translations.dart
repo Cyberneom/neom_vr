@@ -1,4 +1,4 @@
-import 'package:neom_vr/utils/constants/vr_translation_constants.dart';
+import '../../utils/constants/vr_translation_constants.dart';
 
 class VrEnTranslations {
 

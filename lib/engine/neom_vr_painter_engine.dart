@@ -5,11 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:neom_core/app_config.dart';
 import 'package:neom_core/domain/model/neom_visual_state.dart';
 
+/// Motor de dibujo y procesamiento visual VR de Neom.
+///
+/// Encargado de suavizar y transformar las señales de audio analizadas
+/// en parámetros estéticos interpretables por los pintores de escena 3D y osciloscopio.
 class NeomVrPainterEngine extends ChangeNotifier {
 
   NeomVisualState _state = NeomVisualState.zero();
 
+  /// Nivel de amplitud visual base por defecto.
   double visualAmplitudeBase = 0.12;
+
+  /// Nivel máximo permitido para la amplitud de la onda visual.
   double visualAmplitudeMax = 0.45;
 
   double _smooth({
@@ -25,6 +32,7 @@ class NeomVrPainterEngine extends ChangeNotifier {
   }
 
 
+  /// Actualiza el estado visual a partir de los datos espectrales de audio recibidos.
   void updateFromAudio({
     required double phase,
     required double amplitude,
@@ -65,12 +73,15 @@ class NeomVrPainterEngine extends ChangeNotifier {
 
   /// -------- SALIDAS PARA EL PAINTER --------
 
+  /// Obtiene la fase visual calculada a partir del estado de fase y modulación.
   double get visualPhase =>
       _state.phase + _state.modulation * pi * 0.5;
 
+  /// Obtiene la intensidad de brillo (glow) combinando modulación y respuesta neuronal.
   double get glowIntensity =>
       _clamp01((_state.modulation + _state.neuro) * 0.5);
 
+  /// Obtiene la altura de la onda basándose en amplitud, respiración y respuesta neuronal.
   double get waveHeight {
     final amp =
         (_state.amplitude * 0.75) +
@@ -80,6 +91,7 @@ class NeomVrPainterEngine extends ChangeNotifier {
     return amp.clamp(0.0, 1.0) * visualAmplitudeMax;
   }
 
+  /// Obtiene el factor de estiramiento horizontal de la onda según la frecuencia.
   double get waveStretch {
     // Grave → ondas largas | Agudo → ondas cortas
     return lerpDouble(0.5, 5, _state.frequency)! +
@@ -87,9 +99,11 @@ class NeomVrPainterEngine extends ChangeNotifier {
         (_state.modulation * 0.2);
   }
 
+  /// Obtiene el desplazamiento horizontal (drift) basándose en el paneo de audio.
   double get horizontalDrift =>
       _clamp01(_state.pan * 0.5);
 
+  /// Obtiene la pulsación de respiración utilizando una función seno absoluta.
   double get breathPulse =>
       _clamp01(sin(_state.breath * pi).abs());
 
@@ -108,10 +122,16 @@ class NeomVrPainterEngine extends ChangeNotifier {
     return norm.clamp(0.0, 1.0);
   }
 
+  /// Factor de suavizado para la amplitud.
   double smoothAmp = 0.35;
+
+  /// Factor de suavizado para la respiración (breath).
   double smoothBreath = 0.15;
+
+  /// Factor de suavizado para la respuesta neuronal (neuro).
   double smoothNeuro = 0.12;
 
+  /// Configura el perfil de suavizado de los filtros adaptativos.
   void setSmoothingProfile({
     required double amplitude,
     required double breath,
@@ -125,6 +145,7 @@ class NeomVrPainterEngine extends ChangeNotifier {
   double _binauralPhase = 0.0;
   double _binauralBeat = 0.0;
 
+  /// Realiza un tick de animación para la simulación de tonos binaurales.
   void tickBinaural(double beatHz, double dt) {
     if (beatHz <= 0) return;
 
@@ -137,18 +158,23 @@ class NeomVrPainterEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fase calculada de los tonos binaurales.
   double get binauralPhase => _binauralPhase;
 
   // =========================
   // 🔬 OSCILLOSCOPE BUFFER
   // =========================
+
+  /// Tamaño constante del buffer de osciloscopio.
   static const int bufferSize = 512;
   final List<double> _samples =
   List.filled(bufferSize, 0.0, growable: false);
   int _writeIndex = 0;
 
+  /// Obtiene la lista inmutable de muestras almacenadas en el buffer.
   List<double> get samples => _samples;
 
+  /// Añade una nueva muestra analógica al buffer circular del osciloscopio.
   void pushSample(double value) {
     _samples[_writeIndex] = value.clamp(-1.0, 1.0);
     _writeIndex = (_writeIndex + 1) % bufferSize;
@@ -157,6 +183,7 @@ class NeomVrPainterEngine extends ChangeNotifier {
   double _phaseL = 0.0;
   double _phaseR = 0.0;
 
+  /// Actualiza las fases izquierda y derecha de las señales sinusoidales.
   void updatePhases({
     required double phaseL,
     required double phaseR,
@@ -165,9 +192,13 @@ class NeomVrPainterEngine extends ChangeNotifier {
     _phaseR = phaseR;
   }
 
+  /// Obtiene la componente X para gráficos Lissajous.
   double get lissajousX => sin(_phaseL);
+
+  /// Obtiene la componente Y para gráficos Lissajous.
   double get lissajousY => sin(_phaseR);
 
+  /// Obtiene la coherencia hemisférica o desfase entre ambos canales.
   double get hemisphericCoherence {
     final diff = (_phaseL - _phaseR).abs();
     return cos(diff).abs().clamp(0.0, 1.0);

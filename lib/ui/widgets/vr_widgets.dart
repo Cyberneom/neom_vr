@@ -19,7 +19,7 @@ Widget buildVRHeadsetButton(NeomSpatial360Controller controller) {
       decoration: BoxDecoration(
         color: Colors.black54,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColor.bondiBlue.withOpacity(0.5)),
+        border: Border.all(color: AppColor.bondiBlue.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
