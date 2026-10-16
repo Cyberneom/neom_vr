@@ -23,6 +23,8 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
 dependency_overrides:
+  vrlizate_physics:
+    path: ../../vrlizate_physics
   sint:
     path: ../../../framework/sint
   neom_core:

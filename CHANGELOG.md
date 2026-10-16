@@ -1,3 +1,17 @@
+### 1.4.0 - Open Neom integration for renderer sessions
+
+- Replace the `sint_vr` dependency with vrlizate 1.13.0 and SINT 1.7.0-dev.1.
+- Add `neom_vr_sessions.dart`, `NeomVrSessionController` and `NeomVrSessionHost`.
+  The bridge composes the core controller; the renderer lifecycle remains in
+  vrlizate, without a second state machine or resource owner.
+- Register hosted bridges under unique permanent tags and protect foreign
+  replacements during disposal. External SINT deletion closes the core session.
+- Move VR bindings, legacy controller/scene state, scene navigation and translation
+  maps into neom_vr, retaining their public names and ownership semantics.
+- Use SINT's generic navigation fixes directly; correct stale engine attribution.
+- Raise the minimum toolchain to Dart 3.12 / Flutter 3.47 for these dependencies.
+- Add registration, error, nested-host, replacement and engine-ownership tests.
+
 ### 1.2.0 - Custom Painter Engine & Enhanced VR Experience
 
 This release represents a major evolution towards a fully custom VR rendering solution, moving away from external library dependencies.

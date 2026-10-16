@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:vrlizate/vrlizate.dart';
 
-/// Motor VR 360 reactivo al audio construido sobre sint_vr/vrlizate.
+/// Motor VR 360 reactivo al audio construido sobre vrlizate.
 ///
 /// Administra partículas, anillos, constelaciones y el estado del audio.
 /// Delega la proyección y el renderizado estereoscópico a la librería vrlizate.

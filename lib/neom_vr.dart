@@ -10,3 +10,5 @@ export 'ui/spatial/neom_spatial_360_controller.dart';
 export 'ui/spatial/neom_spatial_360_fullscreen_page.dart';
 export 'ui/widgets/vr_widgets.dart';
 export 'vr_routes.dart';
+
+export 'neom_vr_sessions.dart';

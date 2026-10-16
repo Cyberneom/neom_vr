@@ -2,7 +2,48 @@
 
 An experimental Virtual Reality module for Flutter applications, part of the Open Neom ecosystem. Focused on democratizing VR for smartphone users without expensive equipment.
 
-## Current Version: 1.2.0
+## Current Version: 1.4.0
+
+## Renderer sessions and SINT integration
+
+`vrlizate` owns the renderer lifecycle and works independently of SINT. This
+module adds the optional Open Neom integration through
+`package:neom_vr/neom_vr_sessions.dart`:
+
+- `NeomVrSessionController` composes an existing `VrSessionController` and mirrors
+  its status into SINT reactive state. Registration does not start rendering.
+  Deleting the bridge closes the session; the core controller owner disposes it.
+- `NeomVrSessionHost` wraps `VrSessionHost`, registers one permanent SINT bridge
+  per host using a unique `registrationTag`, and removes only its own registration.
+  The core host owns visibility, pause/resume, cleanup and notifier disposal.
+- `VRBindings`, `VRController`, `VRSceneState`, `VRNavigator`, `VRRoutes` and the
+  generic VR UI translation maps are maintained here after migration from
+  `sint_vr`. They retain their existing names and engine ownership rules.
+- Mixed Flutter/SINT route handling is provided directly by `SintDelegate` in
+  SINT 1.7.0-dev.1; no separate VR router delegate is needed.
+
+```dart
+import 'package:neom_vr/neom_vr_sessions.dart';
+
+// Keep the adapter stable for the lifetime of this host.
+NeomVrSessionHost(
+  adapter: adapter,
+  builder: (context, controller, active) {
+    // controller.session is the same controller owned by the core host.
+    // controller.status.value is also available to SINT reactive consumers.
+    return buildRenderer(context, active);
+  },
+);
+```
+
+Use `NeomVrSessionHost.of(context)` to access the nearest SINT bridge, or
+`VrSessionHost.of(context)` for the core session. Widget adapters only pause
+Flutter tickers: native rendering, microphone, audio and sensor subscriptions need
+explicit lifecycle callbacks. Resource ownership remains with the adapter.
+
+This entrypoint avoids importing application viewer pages. It does not remove the
+package's existing `neom_core` and `neom_commons` dependencies; standalone SDK
+applications can continue using `vrlizate` directly without this integration.
 
 ## Philosophy
 
@@ -171,7 +212,8 @@ lib/
 
 - `neom_core` - Core services and configuration
 - `neom_commons` - Shared UI components
-- `sensors_plus` - Device sensor access
+- `vrlizate` - VR engine, sensor access and renderer session lifecycle
+- `sint` - Optional Open Neom state, injection, navigation and translation integration
 
 ## License
 

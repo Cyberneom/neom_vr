@@ -4,7 +4,7 @@ import 'package:vrlizate/vrlizate.dart';
 import '../../engine/neom_vr_360_engine.dart';
 
 /// Monoscopic (single-eye) painter for spatial 360 view.
-/// Delegates rendering to sint_vr's VRMonoPainter + VRScene.
+/// Delegates rendering to vrlizate's VRMonoPainter + VRScene.
 class NeomVR360Painter extends CustomPainter {
   final NeomVR360Engine engine;
   final bool showRings;

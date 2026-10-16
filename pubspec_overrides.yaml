@@ -9,3 +9,5 @@ dependency_overrides:
     path: ../../neom/neom_frequencies
   vrlizate:
     path: ../vrlizate
+  vrlizate_physics:
+    path: ../vrlizate_physics

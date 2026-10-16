@@ -4,7 +4,7 @@ import 'package:vrlizate/vrlizate.dart';
 import '../../engine/neom_vr_360_engine.dart';
 
 /// Stereoscopic painter for neom_vr.
-/// Delegates all rendering to sint_vr's VRStereoPainter + VRScene.
+/// Delegates all rendering to vrlizate's VRStereoPainter + VRScene.
 class NeomVR360StereoPainter extends CustomPainter {
   final NeomVR360Engine engine;
   final bool showRings;

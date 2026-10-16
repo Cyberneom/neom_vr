@@ -10,7 +10,7 @@ import '../../engine/neom_vr_360_engine.dart';
 import '../../engine/neom_vr_painter_engine.dart';
 
 /// Controlador para modo VR estereoscópico (visor con smartphone).
-/// Usa HeadTracker de sint_vr para giroscopio y touch fallback.
+/// Usa HeadTracker de vrlizate para giroscopio y touch fallback.
 class NeomVR360StereoController extends SintController {
 
   late NeomVR360Engine vrEngine;
@@ -54,7 +54,7 @@ class NeomVR360StereoController extends SintController {
     vrEngine.initialize();
     vrEngine.camera.autoRotateSpeed = 0; // Solo giroscopio en VR
 
-    // Head tracking via sint_vr
+    // Head tracking via vrlizate
     headTracker = HeadTracker.forCamera(
       vrEngine.camera,
       sensitivity: gyroSensitivity.value,
@@ -181,7 +181,7 @@ class NeomVR360StereoController extends SintController {
     headTracker.sensitivity = value;
   }
 
-  // Touch fallback — delegates to sint_vr HeadTracker
+  // Touch fallback — delegates to vrlizate HeadTracker
   void onPanUpdate(double dx, double dy) {
     if (useGyroscope.value) return;
     headTracker.applyTouchDelta(dx, dy);
