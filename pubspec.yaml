@@ -1,6 +1,6 @@
 name: neom_vr
-description: Neom VR extension module for Open Neom. Provides immersive 360-degree virtual reality viewer pages, controllers, and spatial UI engines for Flutter.
-version: 1.4.0
+description: Neom VR extension module for Open Neom. Provides immersive 360-degree virtual reality viewer pages, controllers, spatial UI engines, Open Neom VR ecosystem, AI assistant, and BLE controller transport for Flutter.
+version: 2.0.0
 homepage: https://github.com/Cyberneom/neom_vr
 # publish_to: 'none'
 
@@ -12,23 +12,47 @@ dependencies:
   flutter:
     sdk: flutter
 
+  sint: ^2.0.0
   neom_core: ^2.0.0
   neom_commons: ^2.0.0
+  neom_auth: ^2.0.0
+  neom_posts: ^2.0.0
+  neom_timeline: ^2.0.0
+  neom_audio_player: ^2.0.0
+  neom_media_player: ^1.4.0
+  neom_books: ^1.0.0
+  neom_ia: ^1.1.0
+  neom_tts: ^1.0.0
+  neom_ble: ^0.1.0
 
-  #Virtual Reality Experimental
-#  flutter_custom_tabs: 2.4.0
-#  panorama: ^0.4.1
-#  video_360: ^0.0.9
-#  split_view: ^3.2.1
-  #vr_player: ^0.2.0
+  firebase_core: ^4.10.0
+  firebase_auth: ^6.5.2
+  cloud_functions: ^6.0.0
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.5.5
+  flutter_secure_storage: ^9.2.4
+  http: ^1.6.0
+  crypto: ^3.0.7
+  file_picker: ^11.0.2
+  speech_to_text: ^7.0.0
+  flutter_blue_plus: ^1.34.5
+  permission_handler: ^12.0.0+1
+  qr_flutter: ^4.1.0
+  vector_math: ^2.1.4
 
-  # VR engine and optional Open Neom / SINT integration
+  # VR engine and spatial modules
   vrlizate: ^1.13.0
-  sint: ^1.7.0-dev.1
+  vrlizate_scene: ^1.0.0
+  vrlizate_home: ^1.0.0
+  vrlizate_assistant: ^1.0.0
+  vrlizate_apps: ^1.0.0
+  vrlizate_avatar: ^1.0.0
+  vrlizate_joystick: ^1.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  fake_async: ^1.3.3
 
 flutter:

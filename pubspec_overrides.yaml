@@ -1,13 +1,79 @@
 dependency_overrides:
+  wordsphere:
+    path: ../../../wordsphere_plugin
   sint:
     path: ../../framework/sint
   neom_core:
     path: ../../main/neom_core
   neom_commons:
     path: ../../main/neom_commons
+  neom_auth:
+    path: ../../main/neom_auth
+  neom_codecs:
+    path: ../../main/neom_codecs
+  neom_posts:
+    path: ../../creator/neom_posts
+  neom_releases:
+    path: ../../creator/neom_releases
+  neom_timeline:
+    path: ../../content/neom_timeline
+  neom_books:
+    path: ../../content/neom_books
+  neom_itemlists:
+    path: ../../content/neom_itemlists
+  neom_google_books:
+    path: ../../content/neom_google_books
+  neom_audio_player:
+    path: ../../media/neom_audio_player
+  neom_media_player:
+    path: ../../media/neom_media_player
+  neom_share:
+    path: ../../social/neom_share
+  neom_rooms:
+    path: ../../social/neom_rooms
+  neom_ia:
+    path: ../../ai/neom_ia
+  neom_tts:
+    path: ../../ai/neom_tts
+  neom_corpus:
+    path: ../../ai/neom_corpus
+  saia_lite_rt:
+    path: ../../ai/saia_lite_rt
+  saia_core:
+    path: ../../ai/saia_core
+  neom_ble:
+    path: ../../hardware/neom_ble
+  neom_sound:
+    path: ../../hardware/neom_sound
   neom_frequencies:
     path: ../../neom/neom_frequencies
   vrlizate:
     path: ../vrlizate
+  vrlizate_widgets:
+    path: ../vrlizate_widgets
+  vrlizate_scene:
+    path: ../vrlizate_scene
+  vrlizate_home:
+    path: ../vrlizate_home
+  vrlizate_cast:
+    path: ../vrlizate_cast
+  vrlizate_assistant:
+    path: ../vrlizate_assistant
+  vrlizate_apps:
+    path: ../vrlizate_apps
+  vrlizate_games:
+    path: ../vrlizate_games
+  vrlizate_avatar:
+    path: ../vrlizate_avatar
+  vrlizate_world:
+    path: ../vrlizate_world
+  vrlizate_search:
+    path: ../vrlizate_search
+  vrlizate_joystick:
+    path: ../vrlizate_joystick
+  vrlizate_spatial_audio:
+    path: ../vrlizate_spatial_audio
   vrlizate_physics:
     path: ../vrlizate_physics
+  archive: 4.0.9
+  image: 4.7.2
