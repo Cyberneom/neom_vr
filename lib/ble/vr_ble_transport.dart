@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:neom_ble/gatt/neom_gatt_server.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -227,6 +228,8 @@ class VrBleHost {
   final Stream<BluetoothAdapterState>? adapterStates;
   final String serviceUuid;
   final _peers = <String, VrBleHostPeer>{};
+  final ValueNotifier<bool> _syncingPeer = ValueNotifier<bool>(false);
+  ValueListenable<bool> get syncingPeerListenable => _syncingPeer;
   StreamSubscription<GattServerEvent>? _events;
   StreamSubscription<BluetoothAdapterState>? _adapter;
   Future<void> _resetting = Future.value();
@@ -360,6 +363,11 @@ class VrBleHost {
     }
   }
 
+  void _updateSyncingPeer() {
+    if (_disposed) return;
+    _syncingPeer.value = _peers.isNotEmpty;
+  }
+
   void _onEvent(GattServerEvent event) {
     if (_disposed) return;
     final id = event.deviceId;
@@ -385,6 +393,7 @@ class VrBleHost {
           onClose: () async {
             if (!identical(_peers[id]?.link, link)) return;
             _peers.remove(id);
+            _updateSyncingPeer();
             await _gatt.disconnectDuplexClient(deviceId: id);
           },
         );
@@ -398,12 +407,14 @@ class VrBleHost {
                 sessionToken: controller.sessionToken,
               ),
         );
+        _updateSyncingPeer();
       case GattServerEventType.duplexData:
         final data = event.data;
         if (data != null) _peers[id]?.link.receive(data);
       case GattServerEventType.duplexClientUnsubscribed:
       case GattServerEventType.clientDisconnected:
         final peer = _peers.remove(id);
+        _updateSyncingPeer();
         if (peer != null) unawaited(peer.link.close());
       default:
         break;
@@ -416,6 +427,7 @@ class VrBleHost {
       unawaited(peer.link.close());
     }
     _peers.clear();
+    _updateSyncingPeer();
   }
 
   Future<void> _stopNative() async {
@@ -432,6 +444,7 @@ class VrBleHost {
     _disposed = true;
     _shouldRun = false;
     _closePeers();
+    _syncingPeer.dispose();
     await _events?.cancel();
     await _adapter?.cancel();
     await _resetting;

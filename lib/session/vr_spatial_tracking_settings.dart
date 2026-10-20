@@ -3,6 +3,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 
 import 'vr_spatial_tracking_service.dart';
+import 'vr_tri_camera_live_inspector_card.dart';
 
 Future<void> openVrSpatialTrackingSettings(BuildContext context) =>
     Navigator.of(context).push<void>(
@@ -66,8 +67,8 @@ class VrSpatialTrackingSettingsButton extends StatelessWidget {
       icon: const Icon(Icons.view_in_ar_outlined, size: 15),
       label: Text(
         service.enabled
-            ? 'Movimiento físico · activado'
-            : 'Movimiento físico · experimental',
+            ? '3 Cámaras + Movimiento · activado'
+            : '3 Cámaras + Captura Espacial',
       ),
     );
   }
@@ -80,12 +81,16 @@ class VrSpatialTrackingSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = VrSpatialSettingsScope.maybeOf(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Movimiento físico del visor')),
+      appBar: AppBar(
+        title: const Text('3 Cámaras · Captura Espacial y Visor'),
+      ),
       body: service == null
           ? const Center(child: Text('Seguimiento espacial no disponible'))
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                VrTriCameraLiveInspectorCard(service: service),
+                const SizedBox(height: 18),
                 SwitchListTile.adaptive(
                   key: const ValueKey('spatial_tracking_switch'),
                   contentPadding: EdgeInsets.zero,

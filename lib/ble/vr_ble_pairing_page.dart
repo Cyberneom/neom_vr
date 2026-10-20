@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -120,10 +121,54 @@ class _BleControllerPageState extends State<VrBleControllerPage>
   @override
   Widget build(BuildContext context) => !_prepared
       ? Scaffold(
-          appBar: AppBar(title: const Text('Conectar mando Bluetooth')),
+          backgroundColor: const Color(0xFF080E1D),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF0D162C),
+            title: const Text('Conectar mando Bluetooth'),
+          ),
           body: Center(
             child: _error == null
-                ? const CircularProgressIndicator()
+                ? Container(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    margin: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 28,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF101933),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.cyanAccent.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Colors.cyanAccent),
+                        SizedBox(height: 18),
+                        Text(
+                          'Sincronizando Joystick con el Visor VR…',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Preparando canal Bluetooth LE y abriendo controles del Home 3D…',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -163,6 +208,7 @@ class VrDevicePairingPage extends StatefulWidget {
     required this.onCompleted,
     this.autoStart = false,
     this.hasRegisteredPeer = false,
+    this.syncingPeerListenable,
   });
 
   final VrRemoteControllerService service;
@@ -170,6 +216,7 @@ class VrDevicePairingPage extends StatefulWidget {
   final ValueChanged<bool> onCompleted;
   final bool autoStart;
   final bool hasRegisteredPeer;
+  final ValueListenable<bool>? syncingPeerListenable;
 
   static Future<bool> show(
     BuildContext context, {
@@ -209,6 +256,7 @@ class VrDevicePairingPage extends StatefulWidget {
         onCompleted: complete,
         autoStart: autoStart,
         hasRegisteredPeer: VrVisorBleIdentityStore.instance.hasRegisteredPeer,
+        syncingPeerListenable: bluetooth.syncingPeerListenable,
       ),
     );
     return navigator
@@ -240,12 +288,16 @@ class _VrDevicePairingPageState extends State<VrDevicePairingPage> {
   StreamSubscription<bool>? _connection;
   bool _busy = false;
   bool _completed = false;
+  bool _isPeerSyncing = false;
+  bool _showQrWhenRegistered = false;
   VrPairingPayload? _invitation;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _isPeerSyncing = widget.syncingPeerListenable?.value ?? false;
+    widget.syncingPeerListenable?.addListener(_onSyncingPeerChanged);
     _connection = widget.service.onConnectionChanged.listen(
       (_) => _checkConnected(),
     );
@@ -259,8 +311,32 @@ class _VrDevicePairingPageState extends State<VrDevicePairingPage> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant VrDevicePairingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(
+      oldWidget.syncingPeerListenable,
+      widget.syncingPeerListenable,
+    )) {
+      oldWidget.syncingPeerListenable?.removeListener(_onSyncingPeerChanged);
+      _isPeerSyncing = widget.syncingPeerListenable?.value ?? false;
+      widget.syncingPeerListenable?.addListener(_onSyncingPeerChanged);
+    }
+  }
+
+  void _onSyncingPeerChanged() {
+    if (!mounted) return;
+    final syncing = widget.syncingPeerListenable?.value ?? false;
+    if (_isPeerSyncing != syncing) {
+      setState(() => _isPeerSyncing = syncing);
+    }
+  }
+
   void _checkConnected() {
     if (!widget.service.isConnected || _completed) return;
+    if (mounted) {
+      setState(() {});
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _completed || !widget.service.isConnected) return;
       _completed = true;
@@ -297,36 +373,140 @@ class _VrDevicePairingPageState extends State<VrDevicePairingPage> {
 
   @override
   void dispose() {
+    widget.syncingPeerListenable?.removeListener(_onSyncingPeerChanged);
     _connection?.cancel();
     super.dispose();
   }
 
-  Widget _buildQrArea(Size qrBoxSize) {
-    return Center(
-      child: _invitation == null
-          ? _busy
-                ? const CircularProgressIndicator()
-                : FilledButton.icon(
-                    onPressed: _start,
-                    icon: const Icon(Icons.bluetooth_searching),
-                    label: const Text('Activar vínculo Bluetooth'),
-                  )
-          : Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
+  Widget _buildSyncLoadingCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? actionButton,
+  }) {
+    return Container(
+      key: const ValueKey('ble-sync-loading-card'),
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101933),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.cyanAccent.withValues(alpha: 0.55),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.cyanAccent.withValues(alpha: 0.14),
+            blurRadius: 18,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.cyanAccent, size: 32),
+            const SizedBox(height: 12),
+            const CircularProgressIndicator(color: Colors.cyanAccent),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: QrImageView(
-                key: const ValueKey('ble-invitation-qr'),
-                data: _invitation!.toUri().toString(),
-                backgroundColor: Colors.white,
-                size: math.max(
-                  1,
-                  math.min(qrBoxSize.width - 28, qrBoxSize.height - 28),
-                ),
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
               ),
             ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12.5,
+                height: 1.32,
+              ),
+            ),
+            if (actionButton != null) ...[
+              const SizedBox(height: 12),
+              actionButton,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrArea(Size qrBoxSize) {
+    final isSyncingOrConnected =
+        _isPeerSyncing || _completed || widget.service.isConnected;
+    if (isSyncingOrConnected) {
+      return Center(
+        child: _buildSyncLoadingCard(
+          icon: Icons.sports_esports_rounded,
+          title: (_completed || widget.service.isConnected)
+              ? '¡Joystick conectado! Entrando al Home VR…'
+              : '¡Sincronizando Joystick!',
+          subtitle:
+              'Autenticando enlace Bluetooth LE y cargando el entorno 3D estereoscópico…',
+        ),
+      );
+    }
+    if (_invitation == null) {
+      return Center(
+        child: _busy
+            ? _buildSyncLoadingCard(
+                icon: Icons.bluetooth_searching_rounded,
+                title: 'Preparando vínculo Bluetooth LE…',
+                subtitle: 'Iniciando servicio del Visor VR y preparando conexión…',
+              )
+            : FilledButton.icon(
+                onPressed: _start,
+                icon: const Icon(Icons.bluetooth_searching),
+                label: const Text('Activar vínculo Bluetooth'),
+              ),
+      );
+    }
+    if (widget.hasRegisteredPeer && !_showQrWhenRegistered) {
+      return Center(
+        child: _buildSyncLoadingCard(
+          icon: Icons.bluetooth_connected_rounded,
+          title: 'Sincronizando Joystick registrado…',
+          subtitle:
+              'Buscando tu mando vinculado en segundo plano para abrir el Home VR automáticamente.',
+          actionButton: OutlinedButton.icon(
+            onPressed: () => setState(() => _showQrWhenRegistered = true),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.cyanAccent,
+              side: const BorderSide(color: Colors.cyanAccent),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+            label: const Text('Mostrar código QR'),
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: QrImageView(
+          key: const ValueKey('ble-invitation-qr'),
+          data: _invitation!.toUri().toString(),
+          backgroundColor: Colors.white,
+          size: math.max(
+            1,
+            math.min(qrBoxSize.width - 28, qrBoxSize.height - 28),
+          ),
+        ),
+      ),
     );
   }
 
@@ -417,11 +597,13 @@ class _VrDevicePairingPageState extends State<VrDevicePairingPage> {
             ),
           ),
           if (_invitation != null)
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
               child: Text(
-                'Esperando al mando… No requiere red ni internet.',
-                style: TextStyle(
+                (_isPeerSyncing || _completed || widget.service.isConnected)
+                    ? 'Sincronizando con el mando y abriendo el Home VR…'
+                    : 'Esperando al mando… No requiere red ni internet.',
+                style: const TextStyle(
                   color: Colors.cyanAccent,
                   fontWeight: FontWeight.w700,
                 ),

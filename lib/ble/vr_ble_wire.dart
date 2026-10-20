@@ -391,6 +391,9 @@ class VrBlePacketWriter {
     if (_queue.isNotEmpty && _canCoalesce(_queue.last, packet)) {
       _queue.removeLast();
       _queue.add(packet);
+    } else if (_replacePendingTelemetryControl(packet)) {
+      // Replaced an older queued visionTelemetry / passthroughControl snapshot
+      // in-place so high-rate spatial telemetry never overflows the BLE queue.
     } else {
       if (pendingMessages >= maxPendingMessages) {
         _fail(StateError('BLE packet queue overflow; connection must close.'));
@@ -401,7 +404,41 @@ class VrBlePacketWriter {
     if (!_running) unawaited(_drain());
   }
 
+  bool _replacePendingTelemetryControl(Uint8List next) {
+    final nextType = _telemetryControlType(next);
+    if (nextType == null || _queue.isEmpty) return false;
+    final items = _queue.toList(growable: false);
+    for (var i = items.length - 1; i >= 0; i--) {
+      if (_telemetryControlType(items[i]) == nextType) {
+        items[i] = next;
+        _queue
+          ..clear()
+          ..addAll(items);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static String? _telemetryControlType(Uint8List packet) {
+    if (packet.isEmpty || packet[0] != VrBleWireCodec._controlTag) return null;
+    try {
+      final text = utf8.decode(packet.sublist(1), allowMalformed: true);
+      if (text.contains('"vrlizate.visionTelemetry"')) {
+        return 'vrlizate.visionTelemetry';
+      }
+      if (text.contains('"vrlizate.passthroughControl"')) {
+        return 'vrlizate.passthroughControl';
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static bool _canCoalesce(Uint8List previous, Uint8List next) {
+    final prevTelemetry = _telemetryControlType(previous);
+    if (prevTelemetry != null && prevTelemetry == _telemetryControlType(next)) {
+      return true;
+    }
     if (previous[0] != VrBleWireCodec._stateTag ||
         next[0] != VrBleWireCodec._stateTag) {
       return false;
