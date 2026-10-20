@@ -64,6 +64,11 @@ class VrNeomRoomPreview extends StatelessWidget {
         'Juegos abiertos, con sus creadores',
         const ['Galería', 'Código fuente', 'Joystick'],
       ),
+      VrHomeRoomPurpose.portableWorld => (
+        Icons.public_rounded,
+        'Portal directo a un mundo .vrlw',
+        const ['Mundo 3D', 'Portales', 'Exploración'],
+      ),
     };
     return ExcludeFocus(
       child: IgnorePointer(
