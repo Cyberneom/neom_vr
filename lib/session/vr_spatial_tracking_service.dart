@@ -141,6 +141,7 @@ class VrSpatialTrackingService extends ChangeNotifier
   int _lastUltrasonicPingUs = 0;
   bool _ultrasonicPingInFlight = false;
   int _lastTelemetryUs = 0;
+  int _lastTelemetryNotifyUs = 0;
   double _accumulatedYawRadians = 0.0;
   double _accumulatedPitchRadians = 0.0;
   int _rfScanCounter = 0;
@@ -913,10 +914,14 @@ class VrSpatialTrackingService extends ChangeNotifier
     }
 
     _emitSynthesizedPoseIfNeeded();
-    if (effMix > 0.01 || spatialHudVisible || _spatialInspectorHudEnabled) {
+    if ((spatialHudVisible || _spatialInspectorHudEnabled) && effMix <= 0.01) {
       _triggerUltrasonicPingIfDue();
     }
-    if (!_disposed) notifyListeners();
+    if (!_disposed &&
+        (decodedMiniFrame || nowUs - _lastTelemetryNotifyUs >= 200000)) {
+      _lastTelemetryNotifyUs = nowUs;
+      notifyListeners();
+    }
   }
 
   void _emitSynthesizedPoseIfNeeded() {

@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../utils/constants/vr_constants.dart';
 import '../utils/constants/vr_translation_constants.dart';
 import 'vr_spatial_tracking_service.dart';
 
@@ -41,8 +40,6 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
   static int _activeSubscribers = 0;
   static String? _sharedStatusMessage;
   static VrSpatialTrackingService? _suspendedTrackingService;
-  static int _lastVisionFrameUs = 0;
-  static final Stopwatch _visionClock = Stopwatch()..start();
   static final ValueNotifier<int> _sharedRevision = ValueNotifier<int>(0);
 
   bool _isSubscribed = false;
@@ -120,7 +117,10 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
     VrSpatialTrackingService? service,
   ) async {
     try {
-      final perm = await Permission.camera.request();
+      var perm = await Permission.camera.status;
+      if (!perm.isGranted) {
+        perm = await Permission.camera.request();
+      }
       if (!perm.isGranted) {
         _sharedStatusMessage = VrTranslationConstants.cameraPermissionPending;
         _sharedRevision.value++;
@@ -142,7 +142,7 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
       );
       final controller = CameraController(
         selected,
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
       );
       await controller.initialize();
@@ -150,21 +150,11 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
         await controller.dispose();
         return;
       }
-      // Attach real-time YUV420 CV analyzer stream (throttled to ~7 FPS)
-      try {
-        await controller.startImageStream((CameraImage image) {
-          final nowUs = _visionClock.elapsedMicroseconds;
-          if (nowUs - _lastVisionFrameUs <
-              VrConstants.passthroughVisionFrameIntervalUs) {
-            return;
-          }
-          _lastVisionFrameUs = nowUs;
-          _suspendedTrackingService?.ingestLiveVisorCameraFrame(image);
-        });
-      } catch (_) {
-        // Some emulators or devices may not support simultaneous image stream;
-        // preview texture still works normally.
-      }
+      // NOTE: Do NOT call controller.startImageStream(...) here!
+      // On Android Camera2, startImageStream marshals 3 full YUV420 planes
+      // (~460 KB x 30 FPS) across JNI onto the main UI isolate on every frame,
+      // causing severe frame drops and ANRs during stereo VR rendering.
+      // CameraPreview(ctrl) renders directly via zero-copy GPU SurfaceTexture.
       _sharedController = controller;
       _sharedLens = lensDirection;
       _sharedStatusMessage = null;
