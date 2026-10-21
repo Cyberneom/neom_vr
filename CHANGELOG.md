@@ -1,3 +1,11 @@
+### 2.0.0 - SINT 2.0, Tri-Camera Passthrough HUD & Portable `.vrlw` Ecosystem
+
+- Upgrade `neom_vr` to `2.0.0` powered by `sint: ^2.0.0` (`NeomVrHostBindings`).
+- Extract Open Neom Ecosystem (`lib/ecosystem/`), AI Assistant (`lib/ai/`) and BLE Controller (`lib/ble/`) services into `neom_vr` (`neom_vr_ecosystem.dart`, `neom_vr_ai.dart`, `neom_vr_ble.dart`).
+- Add `VrStereoPassthroughCameraFeed` and `VrTriCameraInspectorSheet` for live Tri-Camera + Ultrasonic + 6-Channel Synthetic LiDAR spatial inspection and stereo passthrough preview.
+- Support `VrHomeRoomPurpose.portableWorld` and `VrHomeRoomIcon.world` in `VrNeomRoomPreview` for dynamic `.vrlw` Mall storefronts.
+- Centralize constants in `NeomVrConstants` and `NeomVrTranslationConstants`.
+
 ### 1.4.0 - Open Neom integration for renderer sessions
 
 - Replace the `sint_vr` dependency with vrlizate 1.13.0 and SINT 1.7.0-dev.1.
