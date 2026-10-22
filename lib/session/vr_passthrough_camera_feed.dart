@@ -21,11 +21,17 @@ class VrPassthroughCameraFeed extends StatefulWidget {
     this.lensDirection = CameraLensDirection.back,
     this.service,
     this.showLensBadge = false,
+    this.enableHardwareCamera = false,
   });
 
   final CameraLensDirection lensDirection;
   final VrSpatialTrackingService? service;
   final bool showLensBadge;
+
+  /// Disabled by default on Impeller Vulkan (`EnableFlutterGPU = true`) to
+  /// prevent Android CameraX `SurfaceTexture` / `flutter_gpu` Vulkan fence
+  /// contention when rendering stereoscopic 3D scenes.
+  final bool enableHardwareCamera;
 
   @override
   State<VrPassthroughCameraFeed> createState() =>
@@ -64,7 +70,7 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
   }
 
   void _subscribeCamera() {
-    if (_isSubscribed) return;
+    if (_isSubscribed || !widget.enableHardwareCamera) return;
     _isSubscribed = true;
     _activeSubscribers++;
     unawaited(_ensureSharedCamera(widget.lensDirection, widget.service));
