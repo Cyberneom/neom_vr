@@ -5,57 +5,51 @@ class VrTranslationConstants {
 
   // Tri-Camera & Spatial Perception Inspector Strings
   static const String triCameraInspectorTitle =
-      'Sincronización Tri-Cámara + Captura Espacial (3 Cámaras)';
-  static const String badgeCam2FloorTitle = 'CÁM 2 · JOYSTICK PISO (PIES)';
-  static const String badgeCam3HandsTitle = 'CÁM 3 · JOYSTICK MANOS/VISOR';
-  static const String badgeCam1VisorTitle = 'CÁM 1 · VISOR S25';
-  static const String cam1StreamTitle =
-      'Frontal/Trasera Mundo + Sobel IA + Laser AF';
-  static const String badgeCam2StreamTitle = 'CÁM 2 · JOYSTICK PISO';
+      'Cámaras y sensado · dos dispositivos';
+  static const String badgeCam2FloorTitle = 'MANDO · LENTE TRASERA';
+  static const String badgeCam3HandsTitle = 'MANDO · LENTE FRONTAL';
+  static const String badgeCam1VisorTitle = 'VISOR · CÁMARA FÍSICA';
+  static const String cam1StreamTitle = 'Vista óptica y resúmenes de análisis';
+  static const String badgeCam2StreamTitle = 'MANDO · TRASERA';
   static const String cam2StreamTitle =
-      'Trasera Ultrawide 119° (Detección IA de Piso y Pies)';
-  static const String badgeCam3StreamTitle = 'CÁM 3 · JOYSTICK TORSO';
+      'Luminancia resumida · análisis 2D experimental';
+  static const String badgeCam3StreamTitle = 'MANDO · FRONTAL';
   static const String cam3StreamTitle =
-      'Frontal 82° + Sonar Chirp 18.6-20.1 kHz (Manos y Visor)';
-  static const String hideLiveCameraBtnLabel =
-      'Ocultar cámara física Cám 1 en vivo';
-  static const String showLiveCameraBtnLabel =
-      'Ver cámara física Cám 1 + Contornos IA 3D en vivo';
+      'Una lente cada vez · sin profundidad medida';
+  static const String hideLiveCameraBtnLabel = 'Ocultar cámara del visor';
+  static const String showLiveCameraBtnLabel = 'Vista cámara visor';
   static const String lensBackLabel = 'Trasera';
   static const String lensFrontLabel = 'Frontal';
   static const String stereoHudSwitchTitle =
-      'Mostrar HUD de 3 Cámaras y Cálculos dentro del Visor (Estéreo)';
+      'Mostrar estado del sensado en ambos ojos';
   static const String stereoHudSwitchSubtitle =
-      'Permite ver dentro de ambos ojos del visor el radar de las 3 cámaras y las fórmulas en tiempo real (también activable con el botón "3 CÁM" del joystick).';
-  static const String passthroughCurtainTitle =
-      'Cortina Breakthrough / Passthrough (Visor)';
+      'Muestra cámaras recibidas y estado VIO; los esquemas de prueba se identifican como simulación.';
+  static const String passthroughCurtainTitle = 'Mezcla de vista de cámara';
   static const String quickMix0Label = '0% Mundo VR';
-  static const String quickMix35Label = '35% Contornos IA';
+  static const String quickMix35Label = '35% Cámara';
   static const String quickMix65Label = '65% Híbrido';
-  static const String quickMix100Label = '100% Cámara Real';
+  static const String quickMix100Label = '100% Vista de cámara';
   static const String statureCalibrationTitle =
       'Calibración de Estatura (H_user)';
   static const String liveMathSectionTitle =
-      'Cálculos Matemáticos en Tiempo Real (Visor + Joystick):';
+      'Parámetros y estimaciones del avatar:';
   static const String verificationSectionTitle =
-      'Verificación de Enlazamiento de Entradas (6 Canales -> 3D)';
-  static const String verifyBipedalWalkLabel =
-      'Probar Paso Cám 2 (Pies + Profundidad)';
-  static const String verify360ScanLabel =
-      'Probar Escaneo 360° (C1+Sonar+BLE+Wi-Fi)';
-  static const String verifyHandTofLabel = 'Probar Manos Cám 3 + ToF';
-  static const String verifyAllChannelsLabel = 'Autodiagnóstico 6/6 Canales';
+      'Simulación de conexiones · datos sintéticos';
+  static const String verifyBipedalWalkLabel = 'Simular paso';
+  static const String verify360ScanLabel = 'Simular puntos 3D';
+  static const String verifyHandTofLabel = 'Simular mano y distancia';
+  static const String verifyAllChannelsLabel = 'Simular todos los canales';
   static const String stereoHudInspectorIdleHeader =
-      'INSPECTOR 3 CÁMARAS + CÁLCULOS EN VIVO';
-  static const String miniMonitorC2Label = 'C2 PISO';
-  static const String miniMonitorC3Label = 'C3 MANO';
+      'ESTADO DE CÁMARAS Y SENSADO';
+  static const String miniMonitorC2Label = 'MANDO TRAS.';
+  static const String miniMonitorC3Label = 'MANDO FRONT.';
   static const String cameraPermissionPending = 'Permiso de cámara pendiente';
   static const String cameraSyntheticFallback = 'Cámara en modo sintético';
   static const String cameraSyntheticWireframeFallback =
       'Vista sintética 3D + Contornos IA';
-  static const String lensFrontLiveBadge = 'Lente Frontal · EN VIVO (IA)';
-  static const String lensBackLiveBadge = 'Lente Trasera · EN VIVO (IA)';
+  static const String lensFrontLiveBadge = 'Lente frontal · imagen física';
+  static const String lensBackLiveBadge = 'Lente trasera · imagen física';
   static const String cameraInitializingBadge = 'Inicializando óptica…';
-  static const String frustumCam1Label = 'CÁM 1 Visor (Mundo/SLAM)';
-  static const String frustumCam2Label = 'CÁM 2 Piso 119° (3.63 m)';
+  static const String frustumCam1Label = 'DEMO · CÁMARA VISOR';
+  static const String frustumCam2Label = 'DEMO · CÁMARA MANDO';
 }

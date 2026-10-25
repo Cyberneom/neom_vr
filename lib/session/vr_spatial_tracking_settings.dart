@@ -65,11 +65,7 @@ class VrSpatialTrackingSettingsButton extends StatelessWidget {
         textStyle: const TextStyle(fontSize: 11),
       ),
       icon: const Icon(Icons.view_in_ar_outlined, size: 15),
-      label: Text(
-        service.enabled
-            ? '3 Cámaras + Movimiento · activado'
-            : '3 Cámaras + Captura Espacial',
-      ),
+      label: Text(service.enabled ? 'Sensado · activado' : 'Cámaras y sensado'),
     );
   }
 }
@@ -81,9 +77,7 @@ class VrSpatialTrackingSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = VrSpatialSettingsScope.maybeOf(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('3 Cámaras · Captura Espacial y Visor'),
-      ),
+      appBar: AppBar(title: const Text('Cámaras y sensado del visor')),
       body: service == null
           ? const Center(child: Text('Seguimiento espacial no disponible'))
           : ListView(

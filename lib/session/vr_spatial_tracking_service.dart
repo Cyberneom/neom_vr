@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:vrlizate_avatar/vrlizate_avatar.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
+import 'vr_visual_tracking_session.dart';
 
 /// Platform seam keeps native camera acquisition outside the renderer package.
 abstract interface class VrSpatialTrackingPlatform {
@@ -21,7 +22,13 @@ abstract interface class VrSpatialTrackingPlatform {
   Future<void> stop();
 }
 
-class AndroidVrSpatialTrackingPlatform implements VrSpatialTrackingPlatform {
+/// Optional diagnostics, deliberately separate from runtime pose acquisition.
+abstract interface class VrCameraCalibrationPlatform {
+  Future<Map<dynamic, dynamic>> cameraCalibration({String? cameraId});
+}
+
+class AndroidVrSpatialTrackingPlatform
+    implements VrSpatialTrackingPlatform, VrCameraCalibrationPlatform {
   static const _methods = MethodChannel('vrlizate/spatial_tracking');
   static const _events = EventChannel('vrlizate/spatial_tracking/poses');
 
@@ -31,6 +38,18 @@ class AndroidVrSpatialTrackingPlatform implements VrSpatialTrackingPlatform {
       return {'supported': false, 'installed': false, 'reason': 'unsupported'};
     }
     return await _methods.invokeMapMethod('availability') ?? {};
+  }
+
+  @override
+  Future<Map<dynamic, dynamic>> cameraCalibration({String? cameraId}) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return {'status': 'unsupported', 'cameras': <Object>[]};
+    }
+    return await _methods.invokeMapMethod<dynamic, dynamic>(
+          'cameraCalibration',
+          cameraId == null ? null : {'cameraId': cameraId},
+        ) ??
+        {};
   }
 
   @override
@@ -64,7 +83,6 @@ class VrSpatialTrackingService extends ChangeNotifier
     this.monotonicMicroseconds,
   }) : _platform = platform ?? AndroidVrSpatialTrackingPlatform() {
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
-    _seedInitialTriCameraSpace();
   }
 
   static const _ultrasonicChannel = MethodChannel('vrlizate/ultrasonic_sonar');
@@ -76,8 +94,8 @@ class VrSpatialTrackingService extends ChangeNotifier
   final int Function()? monotonicMicroseconds;
   final _poses = StreamController<VrSpatialPose>.broadcast(sync: true);
   final _clock = Stopwatch()..start();
-  int get _nowUs =>
-      monotonicMicroseconds?.call() ?? _clock.elapsedMicroseconds;
+  final visualTracking = VrVisualTrackingSession();
+  int get _nowUs => monotonicMicroseconds?.call() ?? _clock.elapsedMicroseconds;
   StreamSubscription<dynamic>? _events;
   Future<void> _operations = Future<void>.value();
   Timer? _watchdog;
@@ -112,18 +130,21 @@ class VrSpatialTrackingService extends ChangeNotifier
     dtSeconds: 0.016,
   );
   double _passthroughMix = 0.0;
+  static const passthroughPreferenceKey = 'vrlizate_passthrough_v1';
+  Future<void>? _passthroughLoad;
+  Future<void> _passthroughWrites = Future<void>.value();
+  int _passthroughPreferenceRevision = 0;
+  final Map<Object, int> _remotePassthroughCommands = {};
+  int _localPassthroughRevision = 0;
+  int get localPassthroughRevision => _localPassthroughRevision;
   bool _spatialInspectorHudEnabled = false;
   vm.Vector3 _latestHeadPosition = vm.Vector3(0.0, 1.61, 0.0);
   vm.Quaternion _latestHeadOrientation = vm.Quaternion.identity();
 
   // Real-time CV, 360° Room Scanning, Foot Odometry & Ultrasonic state
-  int _visorLiveEdgeCells = 28;
+  int _visorLiveEdgeCells = 0;
   double _visorObstacleDistanceMeters = 1.45;
-  double _visorObservedFloorDistanceMeters = 1.61;
-  double _prevVisorDomU = 0.50;
-  double _prevVisorDomV = 0.50;
-  double _prevVisorObstacleDist = 1.45;
-  bool _hasPrevVisorFrame = false;
+  final double _visorObservedFloorDistanceMeters = 1.61;
   bool _visorHandDetected = false;
   vm.Vector2 _visorHandUv = vm.Vector2(0.50, 0.58);
   String _joystickActiveCameraRole = 'rear_floor';
@@ -136,8 +157,9 @@ class VrSpatialTrackingService extends ChangeNotifier
   vm.Vector2 _joystickHandUv = vm.Vector2(0.50, 0.62);
   double _joystickHandConfidence = 0.0;
   double _joystickFeetConfidence = 0.0;
-  double _ultrasonicSnrDb = 16.4;
+  double _ultrasonicSnrDb = 0.0;
   bool _ultrasonicHardwareActive = false;
+  int? _lastValidSonarUs;
   int _lastUltrasonicPingUs = 0;
   bool _ultrasonicPingInFlight = false;
   int _lastTelemetryUs = 0;
@@ -152,13 +174,143 @@ class VrSpatialTrackingService extends ChangeNotifier
   int _visorCamFrames = 0;
   int _joystickFloorFrames = 0;
   int _joystickUpperFrames = 0;
-  int _ultrasonicEchoCount = 1;
-  int _rfBeaconSamples = 1;
+  int _ultrasonicEchoCount = 0;
+  int _rfBeaconSamples = 0;
   int _walkSimulationStep = 0;
   int _scanSimulationSector = 0;
   int _handSimulationStep = 0;
   String _lastVerificationReport =
-      'Enlazamiento activo: 6 canales listos (IMU Visor, Cám 1 Mundo, Cám 2 Piso/Pies, Cám 3 Manos/Visor, Sonar 19.4 kHz, BLE+Wi-Fi RF).';
+      'Sin mediciones de cámara, sonar o RF. Bluetooth y Wi-Fi son transportes; no constituyen un mapa de profundidad.';
+
+  bool _simulationActive = false;
+  bool _visorCameraPreviewEnabled = false;
+  bool _controllerOpticalTrackingEnabled = false;
+  bool _experimentalSonarEnabled = false;
+  bool _sonarUnavailable = false;
+  int _lastLiveFusionUs = -200000;
+  int _lastVisorAnalysisUs = -100000;
+  int _liveFusionUpdates = 0;
+  int _liveFusionDropped = 0;
+  String? _lastRearMiniFrameBase64;
+  String? _lastFrontMiniFrameBase64;
+
+  bool get simulationActive => _simulationActive;
+  bool get visorCameraPreviewEnabled => _visorCameraPreviewEnabled;
+
+  /// Session-local camera analysis opt-in, independent of visible passthrough.
+  bool get controllerOpticalTrackingEnabled =>
+      _controllerOpticalTrackingEnabled;
+
+  void setControllerOpticalTrackingEnabled(bool value) {
+    if (_disposed || _controllerOpticalTrackingEnabled == value) return;
+    _controllerOpticalTrackingEnabled = value;
+    visualTracking.setEnabled(value);
+    notifyListeners();
+  }
+
+  bool get experimentalSonarEnabled => _experimentalSonarEnabled;
+  int get liveFusionUpdates => _liveFusionUpdates;
+  int get liveFusionDropped => _liveFusionDropped;
+
+  /// Reads optional static vendor metadata only. This never requests camera
+  /// permission, starts capture, calibrates a running frame, or publishes pose.
+  Future<Map<dynamic, dynamic>> readCameraCalibrationDiagnostics({
+    String? cameraId,
+  }) async {
+    Map<dynamic, dynamic> unavailable(String reason) => {
+      'status': 'unavailable',
+      'reason': reason,
+      'cameras': <Object>[],
+      'frameMappingKnown': false,
+      'previewCalibrationVerified': false,
+      'metricPoseReady': false,
+      'poseImplemented': false,
+    };
+    if (_disposed) return unavailable('disposed');
+    final provider = _platform;
+    if (provider is! VrCameraCalibrationPlatform) {
+      return unavailable('unsupported');
+    }
+    if (cameraId != null && (cameraId.isEmpty || cameraId.length > 128)) {
+      return unavailable('invalid_camera_id');
+    }
+    try {
+      final result = await (provider as VrCameraCalibrationPlatform)
+          .cameraCalibration(cameraId: cameraId)
+          .timeout(const Duration(seconds: 2));
+      // Static K does not certify crop/zoom/rotation of the active preview.
+      return {
+        ...result,
+        'frameMappingKnown': false,
+        'previewCalibrationVerified': false,
+        'metricPoseReady': false,
+        'poseImplemented': false,
+      };
+    } on MissingPluginException {
+      return unavailable('missing_plugin');
+    } on TimeoutException {
+      return unavailable('timeout');
+    } on PlatformException {
+      return unavailable('platform_error');
+    } catch (_) {
+      return unavailable('invalid_response');
+    }
+  }
+
+  void setVisorCameraPreviewEnabled(bool value) {
+    if (_disposed) return;
+    _localPassthroughRevision++;
+    _passthroughPreferenceRevision++;
+    if (_visorCameraPreviewEnabled == value &&
+        (value ||
+            (_passthroughMix == 0 &&
+                (!visualTracking.markerDetectionEnabled ||
+                    _controllerOpticalTrackingEnabled) &&
+                !visualTracking.bodyDetectionEnabled))) {
+      _persistPassthroughPreferences();
+      return;
+    }
+    _visorCameraPreviewEnabled = value;
+    if (!value) {
+      _passthroughMix = 0;
+      spaceMapper.applyControllerPassthroughMix(0);
+      visualTracking.setBodyDetectionEnabled(false);
+      if (!_controllerOpticalTrackingEnabled) visualTracking.setEnabled(false);
+    }
+    _persistPassthroughPreferences();
+    notifyListeners();
+  }
+
+  void setExperimentalSonarEnabled(bool value) {
+    if (_disposed || _experimentalSonarEnabled == value) return;
+    _experimentalSonarEnabled = value;
+    _sonarUnavailable = false;
+    _ultrasonicHardwareActive = false;
+    notifyListeners();
+  }
+
+  void _beginSimulation() {
+    if (_simulationActive) return;
+    _simulationActive = true;
+    _seedInitialTriCameraSpace();
+  }
+
+  void clearSimulation() {
+    if (!_simulationActive) return;
+    _simulationActive = false;
+    spaceMapper.clear();
+    syntheticLidarScanner.clear();
+    _joystickRearMiniFrame = null;
+    _joystickFrontMiniFrame = null;
+    _lastRearMiniFrameBase64 = null;
+    _lastFrontMiniFrameBase64 = null;
+    _pendingPhysicalStepDelta.setZero();
+    _visorCamFrames = _joystickFloorFrames = _joystickUpperFrames = 0;
+    _ultrasonicEchoCount = _rfBeaconSamples = 0;
+    _lastVerificationReport =
+        'Simulación cerrada. Esperando mediciones reales.';
+    if (!_disposed) notifyListeners();
+  }
 
   @override
   Stream<VrSpatialPose> get poses => _poses.stream;
@@ -186,7 +338,11 @@ class VrSpatialTrackingService extends ChangeNotifier
   double get joystickHandConfidence => _joystickHandConfidence;
   double get joystickFeetConfidence => _joystickFeetConfidence;
   double get ultrasonicSnrDb => _ultrasonicSnrDb;
-  bool get ultrasonicHardwareActive => _ultrasonicHardwareActive;
+  bool get ultrasonicHardwareActive =>
+      _ultrasonicHardwareActive &&
+      _foreground &&
+      _lastValidSonarUs != null &&
+      _nowUs - _lastValidSonarUs! <= 2000000;
   int get scannedVoxelCount => syntheticLidarScanner.occupiedPoints.length;
   double get traversedDepthMeters => math.sqrt(
     _latestHeadPosition.x * _latestHeadPosition.x +
@@ -226,7 +382,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     final delta = _pendingPhysicalStepDelta.clone();
     _pendingPhysicalStepDelta.setZero();
     final targetEyeY = _latestBodyState.headHeightMeters;
-    final dy = (targetEyeY - rigEyeCenter.y) * 0.25;
+    final dy = _simulationActive ? (targetEyeY - rigEyeCenter.y) * 0.25 : 0.0;
     delta.y = dy;
 
     _latestHeadPosition = vm.Vector3(
@@ -252,12 +408,126 @@ class VrSpatialTrackingService extends ChangeNotifier
   }
 
   void setPassthroughMix(double value) {
-    final clamped = value.clamp(0.0, 1.0);
-    if ((_passthroughMix - clamped).abs() < 0.002) return;
-    _passthroughMix = clamped;
-    spaceMapper.applyControllerPassthroughMix(clamped);
-    if (!_disposed) notifyListeners();
+    if (_disposed || !value.isFinite) return;
+    _localPassthroughRevision++;
+    _passthroughPreferenceRevision++;
+    _applyPassthroughMix(value);
+    _persistPassthroughPreferences();
   }
+
+  void _applyPassthroughMix(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    final cameraEnabled = clamped > .01;
+    if ((_passthroughMix - clamped).abs() < 0.002 &&
+        _visorCameraPreviewEnabled == cameraEnabled &&
+        (cameraEnabled ||
+            ((!visualTracking.markerDetectionEnabled ||
+                    _controllerOpticalTrackingEnabled) &&
+                !visualTracking.bodyDetectionEnabled))) {
+      return;
+    }
+    _passthroughMix = clamped;
+    _visorCameraPreviewEnabled = cameraEnabled;
+    if (!cameraEnabled) {
+      visualTracking.setBodyDetectionEnabled(false);
+      if (!_controllerOpticalTrackingEnabled) visualTracking.setEnabled(false);
+    }
+    spaceMapper.applyControllerPassthroughMix(clamped);
+    notifyListeners();
+  }
+
+  /// Only receiver-issued commands may change the camera. A slider snapshot,
+  /// first connection, route rebuild or safety release is not a new command.
+  void applyRemotePassthroughMix(
+    double value, {
+    required Object commandSource,
+    required int commandRevision,
+    int? expectedLocalRevision,
+    bool snapshotOnly = false,
+    bool afterFrame = false,
+    bool Function()? isCurrent,
+  }) {
+    if (_disposed || !value.isFinite) return;
+    if (commandRevision <= (_remotePassthroughCommands[commandSource] ?? 0)) {
+      return;
+    }
+    // Consume even an obsolete queued command, so a later route cannot replay it.
+    _remotePassthroughCommands[commandSource] = commandRevision;
+    if (snapshotOnly) return;
+    final localRevision = expectedLocalRevision ?? _localPassthroughRevision;
+    void apply() {
+      if (_disposed ||
+          localRevision != _localPassthroughRevision ||
+          _remotePassthroughCommands[commandSource] != commandRevision ||
+          !(isCurrent?.call() ?? true)) {
+        return;
+      }
+      _passthroughPreferenceRevision++;
+      _applyPassthroughMix(value);
+      _persistPassthroughPreferences();
+    }
+
+    if (afterFrame) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+      WidgetsBinding.instance.ensureVisualUpdate();
+    } else {
+      apply();
+    }
+  }
+
+  /// Restore before exposing a visor scene. Late reads cannot undo a newer
+  /// local selection or explicit remote command. Analysis remains opt-in.
+  Future<void> loadPassthroughPreferences() =>
+      _passthroughLoad ??= _loadPassthroughPreferences();
+
+  Future<void> _loadPassthroughPreferences() async {
+    final revision = _passthroughPreferenceRevision;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString(passthroughPreferenceKey);
+      if (_disposed ||
+          revision != _passthroughPreferenceRevision ||
+          encoded == null) {
+        return;
+      }
+      final state = jsonDecode(encoded);
+      if (state is! Map<String, dynamic>) return;
+      final enabled = state['cameraEnabled'];
+      final mix = state['mix'];
+      if (enabled is! bool ||
+          mix is! num ||
+          !mix.isFinite ||
+          mix < 0 ||
+          mix > 1) {
+        return;
+      }
+      _visorCameraPreviewEnabled = enabled;
+      _passthroughMix = enabled ? mix.toDouble() : 0;
+      spaceMapper.applyControllerPassthroughMix(_passthroughMix);
+      notifyListeners();
+    } catch (error) {
+      debugPrint('Could not restore passthrough preference: $error');
+    }
+  }
+
+  void _persistPassthroughPreferences() {
+    final encoded = jsonEncode({
+      'cameraEnabled': _visorCameraPreviewEnabled,
+      'mix': _visorCameraPreviewEnabled ? _passthroughMix : 0.0,
+    });
+    // Ordered, immediate writes: an earlier ON cannot finish after a newer OFF.
+    _passthroughWrites = _passthroughWrites.then((_) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final saved = await prefs.setString(passthroughPreferenceKey, encoded);
+        if (!saved) debugPrint('Could not save passthrough preference');
+      } catch (error) {
+        debugPrint('Could not save passthrough preference: $error');
+      }
+    });
+  }
+
+  Future<void> flushPassthroughPreferences() => _passthroughWrites;
 
   void setSpatialInspectorHudEnabled(bool value) {
     if (_spatialInspectorHudEnabled == value) return;
@@ -270,263 +540,93 @@ class VrSpatialTrackingService extends ChangeNotifier
     bodyFusionEngine.calibrateFromStandingHeadHeight(
       clamped - VrAvatarConstants.eyeToCrownOffsetMeters,
     );
-    _latestBodyState = bodyFusionEngine.update(
-      dtSeconds: 0.016,
-      ultrasonicRange: VrUltrasonicRangeSample(
-        distanceMeters: _latestBodyState.headToJoystickDistanceMeters,
-        confidence: 0.96,
-        roundTripMicros:
-            (_latestBodyState.headToJoystickDistanceMeters * 2.0 / 343.2 * 1e6)
-                .round(),
-      ),
-    );
+    _latestBodyState = bodyFusionEngine.update(dtSeconds: 0.016);
     if (!_disposed) notifyListeners();
   }
 
-  /// Processes a live YUV420 [CameraImage] from the Visor's physical camera
-  /// (Cám 1) in real time using a 16x12 Sobel gradient & YCbCr skin-chroma
-  /// detector to scan 360° room depth, track floor horizon, and traverse depth.
+  /// Sparse, bounded 2D diagnostics. Edges/chroma are heuristics, not metric
+  /// depth, a hand model, visual odometry, or a physical position measurement.
   void ingestLiveVisorCameraFrame(CameraImage image) {
-    if (_disposed || image.planes.isEmpty) return;
-    final yPlane = image.planes.first;
-    final yBytes = yPlane.bytes;
-    final width = image.width;
-    final height = image.height;
-    final rowStride = yPlane.bytesPerRow;
-    if (width < 32 || height < 32 || yBytes.isEmpty) return;
+    if (_disposed || !_foreground || image.planes.isEmpty) return;
+    final now = _nowUs;
+    if (now - _lastVisorAnalysisUs < 100000) return;
+    if (image.width < 32 || image.height < 32) return;
+    _lastVisorAnalysisUs = now;
+    final y = image.planes.first;
+    final isBgra = image.format.group == ImageFormatGroup.bgra8888;
+    if (!isBgra && image.format.group != ImageFormatGroup.yuv420) return;
+    int? luma(int px, int py) {
+      final offset =
+          py * y.bytesPerRow + px * (y.bytesPerPixel ?? (isBgra ? 4 : 1));
+      if (offset < 0 || offset + (isBgra ? 2 : 0) >= y.bytes.length) {
+        return null;
+      }
+      if (!isBgra) return y.bytes[offset];
+      return (29 * y.bytes[offset] +
+              150 * y.bytes[offset + 1] +
+              77 * y.bytes[offset + 2]) >>
+          8;
+    }
 
-    final uPlane = image.planes.length > 1 ? image.planes[1] : null;
-    final vPlane = image.planes.length > 2 ? image.planes[2] : null;
-
-    const gridW = 16;
-    const gridH = 12;
-    int strongEdges = 0;
-    double edgeWeightedX = 0.0;
-    double edgeWeightedY = 0.0;
-    double edgeWeightSum = 0.0;
-
-    // 3 horizontal angular sectors (Left, Center, Right) + lower Floor band
-    final sectorEdgeCount = <int>[0, 0, 0];
-    final sectorWeightedV = <double>[0.0, 0.0, 0.0];
-    int floorBandEdges = 0;
-    double floorBandVSum = 0.0;
-
-    int skinCells = 0;
-    double skinSumU = 0.0;
-    double skinSumV = 0.0;
-
-    for (var gy = 1; gy < gridH - 1; gy++) {
-      final py = ((gy + 0.5) * height / gridH).floor().clamp(1, height - 2);
-      for (var gx = 1; gx < gridW - 1; gx++) {
-        final px = ((gx + 0.5) * width / gridW).floor().clamp(1, width - 2);
-        final idxCenter = py * rowStride + px;
-        final idxLeft = py * rowStride + (px - 1);
-        final idxRight = py * rowStride + (px + 1);
-        final idxUp = (py - 1) * rowStride + px;
-        final idxDown = (py + 1) * rowStride + px;
-        if (idxDown >= yBytes.length || idxRight >= yBytes.length) continue;
-
-        final gradX = (yBytes[idxRight] - yBytes[idxLeft]).abs();
-        final gradY = (yBytes[idxDown] - yBytes[idxUp]).abs();
-        final mag = gradX + gradY;
-        final normU = (gx + 0.5) / gridW;
-        final normV = (gy + 0.5) / gridH;
-
-        if (mag > 34) {
-          strongEdges++;
-          final w = mag.toDouble();
-          edgeWeightedX += normU * w;
-          edgeWeightedY += normV * w;
-          edgeWeightSum += w;
-
-          final sectorIdx = gx < 6 ? 0 : (gx < 11 ? 1 : 2);
-          sectorEdgeCount[sectorIdx]++;
-          sectorWeightedV[sectorIdx] += normV;
-
-          if (gy >= 7) {
-            floorBandEdges++;
-            floorBandVSum += normV;
-          }
-        }
-
-        // Check YCbCr skin-tone chroma for near-field hands in front of visor
-        final luma = yBytes[idxCenter];
-        if (luma > 55 && luma < 235 && uPlane != null && vPlane != null) {
-          final uvRow = (py >> 1) * uPlane.bytesPerRow;
-          final uvPixelStride = uPlane.bytesPerPixel ?? 1;
-          final uvIdx = uvRow + (px >> 1) * uvPixelStride;
-          if (uvIdx >= 0 &&
-              uvIdx < uPlane.bytes.length &&
-              uvIdx < vPlane.bytes.length) {
-            final cb = uPlane.bytes[uvIdx];
-            final cr = vPlane.bytes[uvIdx];
-            if (cb >= 80 && cb <= 136 && cr >= 133 && cr <= 183) {
-              skinCells++;
-              skinSumU += normU;
-              skinSumV += normV;
-            }
+    int edges = 0, skin = 0;
+    double sumU = 0, sumV = 0;
+    for (int gy = 1; gy < 11; gy++) {
+      final py = ((gy + .5) * image.height / 12).floor().clamp(
+        1,
+        image.height - 2,
+      );
+      for (int gx = 1; gx < 15; gx++) {
+        final px = ((gx + .5) * image.width / 16).floor().clamp(
+          1,
+          image.width - 2,
+        );
+        final a = luma(px - 1, py), b = luma(px + 1, py);
+        final c = luma(px, py - 1), d = luma(px, py + 1);
+        if (a == null || b == null || c == null || d == null) continue;
+        if ((a - b).abs() + (c - d).abs() > 34) edges++;
+        if (!isBgra && image.planes.length >= 3) {
+          final u = image.planes[1], v = image.planes[2];
+          final ui =
+              (py >> 1) * u.bytesPerRow + (px >> 1) * (u.bytesPerPixel ?? 1);
+          final vi =
+              (py >> 1) * v.bytesPerRow + (px >> 1) * (v.bytesPerPixel ?? 1);
+          if (ui >= u.bytes.length || vi >= v.bytes.length) continue;
+          final cb = u.bytes[ui], cr = v.bytes[vi];
+          final lum = luma(px, py) ?? 0;
+          if (lum > 55 &&
+              lum < 235 &&
+              cb >= 80 &&
+              cb <= 136 &&
+              cr >= 133 &&
+              cr <= 183) {
+            skin++;
+            sumU += (gx + .5) / 16;
+            sumV += (gy + .5) / 12;
           }
         }
       }
     }
-
     _visorCamFrames++;
-    _visorLiveEdgeCells = strongEdges;
-    final domU = edgeWeightSum > 0 ? (edgeWeightedX / edgeWeightSum) : 0.5;
-    final domV = edgeWeightSum > 0 ? (edgeWeightedY / edgeWeightSum) : 0.5;
-    final densityFactor = (strongEdges / 96.0).clamp(0.0, 1.0);
-    final measuredObstacleDist =
-        (1.85 - densityFactor * 0.70 - (domV - 0.5).abs() * 0.25).clamp(
-          0.70,
-          2.40,
-        );
-    _visorObstacleDistanceMeters =
-        _visorObstacleDistanceMeters * 0.65 + measuredObstacleDist * 0.35;
-
-    // Estimate floor distance from lower-band perspective horizon in Cám 1
-    if (floorBandEdges >= 3) {
-      final meanFloorV = floorBandVSum / floorBandEdges;
-      final depressionAngle = ((meanFloorV - 0.42) * 0.95).clamp(0.28, 1.25);
-      _visorObservedFloorDistanceMeters =
-          (_latestBodyState.headHeightMeters / math.sin(depressionAngle)).clamp(
-            0.85,
-            2.15,
-          );
-    }
-
-    // Visual odometry: when native ARCore is not running, optical shift &
-    // approaching/receding obstacle depth updates orientation and depth traversal.
-    if (_hasPrevVisorFrame && !_nativeRunning) {
-      final deltaU = (domU - _prevVisorDomU).clamp(-0.18, 0.18);
-      final deltaV = (domV - _prevVisorDomV).clamp(-0.15, 0.15);
-      final deltaDist = (_prevVisorObstacleDist - _visorObstacleDistanceMeters)
-          .clamp(-0.22, 0.22);
-
-      if (deltaU.abs() > 0.015 || deltaV.abs() > 0.015) {
-        _accumulatedYawRadians = (_accumulatedYawRadians - deltaU * 0.35);
-        _accumulatedPitchRadians = (_accumulatedPitchRadians - deltaV * 0.22)
-            .clamp(-0.85, 0.85);
-        final qYaw = vm.Quaternion.axisAngle(
-          vm.Vector3(0.0, 1.0, 0.0),
-          _accumulatedYawRadians,
-        );
-        final qPitch = vm.Quaternion.axisAngle(
-          vm.Vector3(1.0, 0.0, 0.0),
-          _accumulatedPitchRadians,
-        );
-        _latestHeadOrientation = (qYaw * qPitch)..normalize();
-      }
-      if (deltaDist.abs() > 0.018 && strongEdges >= 10) {
-        final forwardHoriz = _headForwardVector()..y = 0.0;
-        if (forwardHoriz.length2 > 1e-5) {
-          forwardHoriz.normalize();
-          final step = forwardHoriz * (deltaDist * 0.38);
-          _latestHeadPosition += step;
-          _pendingPhysicalStepDelta.add(step);
-          _latestHeadPosition.x = _latestHeadPosition.x.clamp(-4.5, 4.5);
-          _latestHeadPosition.z = _latestHeadPosition.z.clamp(-4.5, 4.5);
-        }
-      }
-    }
-    _prevVisorDomU = domU;
-    _prevVisorDomV = domV;
-    _prevVisorObstacleDist = _visorObstacleDistanceMeters;
-    _hasPrevVisorFrame = true;
-
-    final forward = _headForwardVector();
-    final right = _headRightVector();
-
-    // Multi-sector 360° Visual LiDAR scanning across Left (-26°), Center (0°), Right (+26°)
-    const sectorAngles = <double>[-0.45, 0.0, 0.45];
-    for (var s = 0; s < 3; s++) {
-      final count = sectorEdgeCount[s];
-      if (count < 2) continue;
-      final sectorDensity = (count / 32.0).clamp(0.0, 1.0);
-      final meanV = sectorWeightedV[s] / count;
-      final sectorDist =
-          (1.95 - sectorDensity * 0.75 - (meanV - 0.5).abs() * 0.22).clamp(
-            0.70,
-            2.65,
-          );
-      final ang = sectorAngles[s];
-      final rayDir = (forward * math.cos(ang) + right * math.sin(ang))
-        ..normalize();
-      final hitWorld = vm.Vector3(
-        _latestHeadPosition.x + rayDir.x * sectorDist,
-        (0.45 + (0.6 - meanV) * 0.65).clamp(0.25, 1.65),
-        _latestHeadPosition.z + rayDir.z * sectorDist,
-      );
-      final category = sectorDist < 1.38
-          ? VrSpatialObjectCategory.table
-          : VrSpatialObjectCategory.wall;
-      syntheticLidarScanner.ingestVisualDepthPoint(
-        worldPosition: hitWorld,
-        normal: -rayDir,
-        category: category,
-        confidence: (0.62 + sectorDensity * 0.34).clamp(0.60, 0.96),
-      );
-    }
-
-    // Place primary front obstacle along current viewing ray
-    final frontCenter =
-        _latestHeadPosition +
-        forward * _visorObstacleDistanceMeters +
-        right * ((domU - 0.5) * 1.1);
-    spaceMapper.upsertObject(
-      VrDetectedSpatialObject.fromBoundingBox3D(
-        id: 'room_desk_front',
-        label:
-            'Obstáculo Frontal IA (${_visorObstacleDistanceMeters.toStringAsFixed(2)}m · $strongEdges bordes)',
-        category: VrSpatialObjectCategory.table,
-        centerWorld: vm.Vector3(frontCenter.x, 0.42, frontCenter.z),
-        extentsWorld: vm.Vector3(
-          (0.85 + densityFactor * 0.55).clamp(0.75, 1.45),
-          0.78,
-          0.58,
-        ),
-        sourceCameraId: VrSceneConstants.cameraSourceVisorFront,
-      ),
-    );
-
-    if (skinCells >= 5) {
-      _visorHandDetected = true;
-      _visorHandUv = vm.Vector2(
-        skinSumU / skinCells,
-        skinSumV / skinCells,
-      );
-      final handDist = _latestBodyState.headToJoystickDistanceMeters.clamp(
-        0.30,
-        0.65,
-      );
-      final handWorld =
-          _latestHeadPosition +
-          forward * handDist +
-          right * ((_visorHandUv.x - 0.5) * 0.55) +
-          vm.Vector3(0.0, (0.45 - _visorHandUv.y) * 0.45, 0.0);
-      spaceMapper.upsertObject(
-        VrDetectedSpatialObject.fromBoundingBox3D(
-          id: 'user_hands_joystick',
-          label: 'Mano Detectada en Vivo (Cám 1 + Cám 3)',
-          category: VrSpatialObjectCategory.handController,
-          centerWorld: handWorld,
-          extentsWorld: vm.Vector3(0.24, 0.14, 0.14),
-          sourceCameraId: VrSceneConstants.cameraSourceVisorFront,
-        ),
-      );
-    } else {
-      _visorHandDetected = false;
-    }
-
-    syntheticLidarScanner.syncToSpaceMapper(spaceMapper);
-    _emitSynthesizedPoseIfNeeded();
+    _visorLiveEdgeCells = edges;
+    _visorHandDetected = skin >= 5;
+    if (_visorHandDetected) _visorHandUv = vm.Vector2(sumU / skin, sumV / skin);
     _triggerUltrasonicPingIfDue();
-    if (!_disposed) notifyListeners();
+    notifyListeners();
   }
 
   void _triggerUltrasonicPingIfDue() {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (_disposed ||
+        _simulationActive ||
+        !_experimentalSonarEnabled ||
+        _sonarUnavailable ||
+        !_foreground ||
+        !hasVisibleScene ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
     final now = _nowUs;
-    if (_ultrasonicPingInFlight || now - _lastUltrasonicPingUs < 1100000) {
+    if (_ultrasonicPingInFlight || now - _lastUltrasonicPingUs < 2000000) {
       return;
     }
     _ultrasonicPingInFlight = true;
@@ -534,34 +634,49 @@ class VrSpatialTrackingService extends ChangeNotifier
     unawaited(
       _ultrasonicChannel
           .invokeMapMethod<String, dynamic>('ping', {'emitAudio': true})
+          .timeout(const Duration(seconds: 2))
           .then((res) {
-            if (_disposed || res == null) return;
-            _ultrasonicHardwareActive = res['emitted'] == true;
-            final snr = (res['snrDb'] as num?)?.toDouble();
-            if (snr != null && snr.isFinite) {
-              _ultrasonicSnrDb = snr;
+            if (_disposed || !_experimentalSonarEnabled || !_foreground) return;
+            final valid =
+                res?['measurementValid'] == true &&
+                res?['calibrated'] == true &&
+                res?['micAnalyzed'] == true &&
+                res?['emitted'] == true;
+            _ultrasonicHardwareActive = false;
+            if (!valid) {
+              _sonarUnavailable = true;
+              return;
             }
-            final rtUs = (res['roundTripMicros'] as num?)?.toInt();
-            if (rtUs != null && rtUs > 800) {
-              _ultrasonicEchoCount++;
-              syntheticLidarScanner.ingestAcousticSonarEcho(
-                echo: VrAcousticSonarEcho(
-                  roundTripSeconds: rtUs / 1000000.0,
-                  carrierFrequencyHz: 19350,
-                  reflectionAmplitude: (_ultrasonicSnrDb / 28.0).clamp(
-                    0.25,
-                    0.98,
-                  ),
-                ),
-                sensorPosition: _latestHeadPosition,
-                sensorForward: _headForwardVector(),
-                sensorRight: _headRightVector(),
-              );
-              syntheticLidarScanner.syncToSpaceMapper(spaceMapper);
-              if (!_disposed) notifyListeners();
+            final snr = (res?['snrDb'] as num?)?.toDouble();
+            final rtUs = (res?['roundTripMicros'] as num?)?.toInt();
+            if (snr == null ||
+                !snr.isFinite ||
+                snr < 6 ||
+                rtUs == null ||
+                rtUs <= 0) {
+              return;
             }
+            _ultrasonicHardwareActive = true;
+            _lastValidSonarUs = _nowUs;
+            _ultrasonicSnrDb = snr;
+            _ultrasonicEchoCount++;
+            syntheticLidarScanner.ingestAcousticSonarEcho(
+              echo: VrAcousticSonarEcho(
+                roundTripSeconds: rtUs / 1e6,
+                carrierFrequencyHz: 19350,
+                reflectionAmplitude: (snr / 28).clamp(0.0, 1.0),
+              ),
+              sensorPosition: _latestHeadPosition,
+              sensorForward: _headForwardVector(),
+              sensorRight: _headRightVector(),
+            );
+            syntheticLidarScanner.syncToSpaceMapper(spaceMapper);
+            notifyListeners();
           })
-          .catchError((_) {})
+          .catchError((Object _) {
+            _sonarUnavailable = true;
+            _ultrasonicHardwareActive = false;
+          })
           .whenComplete(() {
             _ultrasonicPingInFlight = false;
           }),
@@ -569,6 +684,122 @@ class VrSpatialTrackingService extends ChangeNotifier
   }
 
   void updateLiveControllerTelemetry({
+    required double stickX,
+    required double stickY,
+    required double passthroughMix,
+    required bool spatialHudVisible,
+    double turnRate = 0.0,
+    double pitchRate = 0.0,
+    vm.Quaternion? controllerOrientation,
+    double? rangeMeters,
+    double? leftFootU,
+    double? leftFootV,
+    double? rightFootU,
+    double? rightFootV,
+    double? feetConfidence,
+    double? handU,
+    double? handV,
+    double? handConfidence,
+    double? visorU,
+    double? visorV,
+    double? visorWidth,
+    String? joystickActiveCameraRole,
+    String? joystickMiniFrameBase64,
+  }) {
+    if (_disposed || !_foreground) return;
+    // HUD/control changes are cheap and immediate. Heavy sensing is capped at
+    // 5 Hz independently of game input and deduplicates retained mini frames.
+    spaceMapper.applyControllerPassthroughMix(
+      _visorCameraPreviewEnabled ? _passthroughMix : 0,
+    );
+    if (_simulationActive) return;
+    final now = _nowUs;
+    if (now - _lastLiveFusionUs < 200000) {
+      _liveFusionDropped++;
+      return;
+    }
+    final dt = ((now - _lastLiveFusionUs) / 1e6).clamp(.008, .25);
+    _lastLiveFusionUs = now;
+    _liveFusionUpdates++;
+    if (joystickActiveCameraRole != null) {
+      _joystickActiveCameraRole = joystickActiveCameraRole;
+    }
+    final isFront =
+        _joystickActiveCameraRole == 'front' ||
+        _joystickActiveCameraRole == 'front_upper';
+    final previous = isFront
+        ? _lastFrontMiniFrameBase64
+        : _lastRearMiniFrameBase64;
+    if (joystickMiniFrameBase64 != null &&
+        joystickMiniFrameBase64 != previous &&
+        joystickMiniFrameBase64.length == 576) {
+      try {
+        final frame = base64Decode(joystickMiniFrameBase64);
+        if (frame.length == miniFrameWidth * miniFrameHeight) {
+          if (isFront) {
+            _joystickFrontMiniFrame = frame;
+            _lastFrontMiniFrameBase64 = joystickMiniFrameBase64;
+            _joystickUpperFrames++;
+          } else {
+            _joystickRearMiniFrame = frame;
+            _lastRearMiniFrameBase64 = joystickMiniFrameBase64;
+            _joystickFloorFrames++;
+          }
+        }
+      } on FormatException {
+        /* Drop invalid optional preview, keep controls. */
+      }
+    }
+    final feetValid =
+        feetConfidence != null &&
+        feetConfidence.isFinite &&
+        feetConfidence > 0 &&
+        leftFootU != null &&
+        leftFootU.isFinite &&
+        leftFootV != null &&
+        leftFootV.isFinite &&
+        rightFootU != null &&
+        rightFootU.isFinite &&
+        rightFootV != null &&
+        rightFootV.isFinite;
+    _joystickFeetConfidence = feetValid ? feetConfidence.clamp(0.0, .35) : 0;
+    if (feetValid) {
+      _joystickLeftFootUv = vm.Vector2(
+        leftFootU.clamp(0.0, 1.0),
+        leftFootV.clamp(0.0, 1.0),
+      );
+      _joystickRightFootUv = vm.Vector2(
+        rightFootU.clamp(0.0, 1.0),
+        rightFootV.clamp(0.0, 1.0),
+      );
+    }
+    final handValid =
+        handConfidence != null &&
+        handConfidence.isFinite &&
+        handConfidence > 0 &&
+        handU != null &&
+        handU.isFinite &&
+        handV != null &&
+        handV.isFinite;
+    _joystickHandConfidence = handValid ? handConfidence.clamp(0.0, .35) : 0;
+    if (handValid) {
+      _joystickHandUv = vm.Vector2(
+        handU.clamp(0.0, 1.0),
+        handV.clamp(0.0, 1.0),
+      );
+    }
+    // The camera currently supplies sparse 2D heuristics, without calibrated
+    // extrinsics or reliable depth. Do not convert them into physical walking,
+    // room geometry, RF measurements, or a tracking pose.
+    _latestBodyState = bodyFusionEngine.update(dtSeconds: dt);
+    _lastVerificationReport =
+        'IMU y mando activos · óptica 2D estimada · '
+        'fusión $_liveFusionUpdates / omitidos $_liveFusionDropped · RF sin mediciones';
+    _triggerUltrasonicPingIfDue();
+    notifyListeners();
+  }
+
+  void _updateSimulatedControllerTelemetry({
     required double stickX,
     required double stickY,
     required double passthroughMix,
@@ -617,8 +848,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     }
 
     var decodedMiniFrame = false;
-    if (joystickMiniFrameBase64 != null &&
-        joystickMiniFrameBase64.isNotEmpty) {
+    if (joystickMiniFrameBase64 != null && joystickMiniFrameBase64.isNotEmpty) {
       try {
         final decoded = base64Decode(joystickMiniFrameBase64);
         if (decoded.length >= miniFrameWidth * miniFrameHeight) {
@@ -633,10 +863,12 @@ class VrSpatialTrackingService extends ChangeNotifier
     }
 
     final tSec = nowUs / 1000000.0;
-    final walkingMag =
-        math.sqrt(stickX * stickX + stickY * stickY).clamp(0.0, 1.0);
-    final swing =
-        walkingMag > 0.05 ? math.sin(tSec * 5.5) * 0.20 * walkingMag : 0.0;
+    final walkingMag = math
+        .sqrt(stickX * stickX + stickY * stickY)
+        .clamp(0.0, 1.0);
+    final swing = walkingMag > 0.05
+        ? math.sin(tSec * 5.5) * 0.20 * walkingMag
+        : 0.0;
 
     var leftGrounded = true;
     var rightGrounded = true;
@@ -653,10 +885,7 @@ class VrSpatialTrackingService extends ChangeNotifier
       _prevLeftFootV = nextLeftV;
       _prevRightFootV = nextRightV;
 
-      _joystickLeftFootUv = vm.Vector2(
-        leftFootU.clamp(0.05, 0.95),
-        nextLeftV,
-      );
+      _joystickLeftFootUv = vm.Vector2(leftFootU.clamp(0.05, 0.95), nextLeftV);
       _joystickRightFootUv = vm.Vector2(
         rightFootU.clamp(0.05, 0.95),
         nextRightV,
@@ -711,7 +940,9 @@ class VrSpatialTrackingService extends ChangeNotifier
       rightFootUv: _joystickRightFootUv,
       leftFootGrounded: leftGrounded,
       rightFootGrounded: rightGrounded,
-      confidence: _joystickFeetConfidence > 0.1 ? _joystickFeetConfidence : 0.94,
+      confidence: _joystickFeetConfidence > 0.1
+          ? _joystickFeetConfidence
+          : 0.94,
     );
     final frontFrame = VrCameraLandmarkFrame(
       role: VrCameraStreamRole.joystickFrontUpperBody,
@@ -721,7 +952,9 @@ class VrSpatialTrackingService extends ChangeNotifier
         (visorV ?? 0.34).clamp(0.10, 0.85),
       ),
       visorNormalizedWidth: (visorWidth ?? 0.26).clamp(0.10, 0.65),
-      confidence: _joystickHandConfidence > 0.1 ? _joystickHandConfidence : 0.95,
+      confidence: _joystickHandConfidence > 0.1
+          ? _joystickHandConfidence
+          : 0.95,
     );
     _latestBodyState = bodyFusionEngine.update(
       dtSeconds: dtSec,
@@ -760,8 +993,7 @@ class VrSpatialTrackingService extends ChangeNotifier
           vm.Vector3(0.0, 0.0, -1.0),
         );
         final ctrlYaw = math.atan2(-ctrlFwd.x, -ctrlFwd.z);
-        _accumulatedYawRadians =
-            _accumulatedYawRadians * 0.94 + ctrlYaw * 0.06;
+        _accumulatedYawRadians = _accumulatedYawRadians * 0.94 + ctrlYaw * 0.06;
         final qYaw = vm.Quaternion.axisAngle(
           vm.Vector3(0.0, 1.0, 0.0),
           _accumulatedYawRadians,
@@ -888,7 +1120,8 @@ class VrSpatialTrackingService extends ChangeNotifier
     _rfScanCounter++;
     if (_rfScanCounter % 12 == 0) {
       _rfBeaconSamples++;
-      final scanAzimuth = ((_rfScanCounter ~/ 12) % 8) * (math.pi / 4.0) - math.pi;
+      final scanAzimuth =
+          ((_rfScanCounter ~/ 12) % 8) * (math.pi / 4.0) - math.pi;
       final rssiVisor = (-52.0 - effectiveRange * 14.0).clamp(-82.0, -38.0);
       final rssiJoy = (-50.0 - effectiveRange * 12.0).clamp(-80.0, -36.0);
       syntheticLidarScanner.ingestDualPhoneRfSample(
@@ -925,7 +1158,13 @@ class VrSpatialTrackingService extends ChangeNotifier
   }
 
   void _emitSynthesizedPoseIfNeeded() {
-    if (_disposed || _nativeRunning || _leases <= 0 || !_foreground) return;
+    if (_disposed ||
+        !_simulationActive ||
+        _nativeRunning ||
+        _leases <= 0 ||
+        !_foreground) {
+      return;
+    }
     _poses.add(
       VrSpatialPose.tracking(
         position: _latestHeadPosition,
@@ -1041,11 +1280,12 @@ class VrSpatialTrackingService extends ChangeNotifier
   /// Simulates a bipedal walking step sequence on Cám 2 (Rear Floor Camera) +
   /// optical depth flow on Cám 1 to verify foot tracking and 3D depth traversal.
   void simulateBipedalWalkStep() {
+    _beginSimulation();
     _walkSimulationStep++;
     final isLeftForward = _walkSimulationStep.isOdd;
     final leftV = isLeftForward ? 0.34 : 0.72;
     final rightV = isLeftForward ? 0.72 : 0.34;
-    updateLiveControllerTelemetry(
+    _updateSimulatedControllerTelemetry(
       stickX: 0.0,
       stickY: 0.65,
       passthroughMix: _passthroughMix > 0.05 ? _passthroughMix : 0.65,
@@ -1062,7 +1302,7 @@ class VrSpatialTrackingService extends ChangeNotifier
         .clamp(0.0, 5.0)
         .toStringAsFixed(2);
     _lastVerificationReport =
-        'Paso Bípedo #$_walkSimulationStep verificado (Cám 2 Piso -> Profundidad): '
+        'SIMULACIÓN Paso Bípedo #$_walkSimulationStep verificado (Cám 2 Piso -> Profundidad): '
         'Pie ${isLeftForward ? "Izq" : "Der"} adelante · Vel=$vFeet m/s · '
         'Profundidad recorrida=${traversedDepthMeters.toStringAsFixed(2)} m.';
     if (!_disposed) notifyListeners();
@@ -1071,6 +1311,7 @@ class VrSpatialTrackingService extends ChangeNotifier
   /// Simulates a 360° multi-modal spatial scan sweep fusing Cám 1 visual depth,
   /// 19.4 kHz Acoustic Sonar echoes, Bluetooth BLE RSSI, and Wi-Fi RTT/CSI.
   void simulate360MultiModalScanSweep() {
+    _beginSimulation();
     _scanSimulationSector = (_scanSimulationSector + 1) % 8;
     final angle = _scanSimulationSector * (math.pi / 4.0) - (math.pi / 2.0);
     _accumulatedYawRadians = -angle;
@@ -1137,7 +1378,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     syntheticLidarScanner.syncToSpaceMapper(spaceMapper);
     _emitSynthesizedPoseIfNeeded();
     _lastVerificationReport =
-        'Escaneo 360° Sector ${(_scanSimulationSector * 45)}° verificado (Cám 1 + Sonar 19.4kHz + BLE/Wi-Fi): '
+        'SIMULACIÓN Escaneo 360° Sector ${(_scanSimulationSector * 45)}° verificado (Cám 1 + Sonar 19.4kHz + BLE/Wi-Fi): '
         '$scannedVoxelCount vóxeles activos · ${spaceMapper.allContourSegments.length} aristas 3D.';
     if (!_disposed) notifyListeners();
   }
@@ -1145,13 +1386,14 @@ class VrSpatialTrackingService extends ChangeNotifier
   /// Simulates Cám 3 upward hand/visor tracking + 19.4 kHz Ultrasonic ToF
   /// ranging (`d_VJ`) between the Joystick and Visor smartphones.
   void simulateHandAndUltrasonicRanging() {
+    _beginSimulation();
     _handSimulationStep = (_handSimulationStep + 1) % 5;
     final range = 0.34 + _handSimulationStep * 0.085;
     final handU = 0.35 + (_handSimulationStep * 0.075);
     final handV = 0.68 - (_handSimulationStep * 0.045);
     final visorW = (0.105 / range).clamp(0.14, 0.36);
 
-    updateLiveControllerTelemetry(
+    _updateSimulatedControllerTelemetry(
       stickX: 0.0,
       stickY: 0.0,
       passthroughMix: _passthroughMix > 0.05 ? _passthroughMix : 0.65,
@@ -1167,7 +1409,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     );
     final cm = (_latestBodyState.headToJoystickDistanceMeters * 100).round();
     _lastVerificationReport =
-        'Manos Cám 3 + ToF 19.4kHz verificado: d_VJ=$cm cm · '
+        'SIMULACIÓN Manos Cám 3 + ToF 19.4kHz verificado: d_VJ=$cm cm · '
         'Mano UV=(${_joystickHandUv.x.toStringAsFixed(2)}, ${_joystickHandUv.y.toStringAsFixed(2)}) · '
         'Estatura H_user=${_latestBodyState.anthropometry.statureMeters.toStringAsFixed(2)} m.';
     if (!_disposed) notifyListeners();
@@ -1199,6 +1441,7 @@ class VrSpatialTrackingService extends ChangeNotifier
       'contourSegmentCount': spaceMapper.allContourSegments.length,
       'traversedDepthMeters': traversedDepthMeters,
       'headToJoystickMeters': _latestBodyState.headToJoystickDistanceMeters,
+      'simulated': true,
       'allChannelsBound':
           _rigImuFrames > 0 &&
           _visorCamFrames > 0 &&
@@ -1209,7 +1452,7 @@ class VrSpatialTrackingService extends ChangeNotifier
           scannedVoxelCount > 0,
     };
     _lastVerificationReport =
-        'VERIFICACIÓN 6/6 OK · IMU:$_rigImuFrames · C1:$_visorCamFrames · '
+        'SIMULACIÓN (sin validar hardware) · IMU:$_rigImuFrames · C1:$_visorCamFrames · '
         'C2(Pies):$_joystickFloorFrames · C3(Manos):$_joystickUpperFrames · '
         'Sonar:$_ultrasonicEchoCount · RF:$_rfBeaconSamples -> '
         '$scannedVoxelCount vóxeles · Prof=${traversedDepthMeters.toStringAsFixed(2)}m.';
@@ -1246,8 +1489,7 @@ class VrSpatialTrackingService extends ChangeNotifier
           final grid = (x % 6 == 0 || y % 5 == 0) ? 35 : 0;
           bytes[idx] = (leftFoot || rightFoot) ? 215 : (42 + grid);
         } else {
-          final visor =
-              (u - visorU).abs() < 0.18 && (v - visorV).abs() < 0.11;
+          final visor = (u - visorU).abs() < 0.18 && (v - visorV).abs() < 0.11;
           final leftHand =
               (u - (handU - 0.14)) * (u - (handU - 0.14)) +
                   (v - handV) * (v - handV) <
@@ -1582,6 +1824,7 @@ class VrSpatialTrackingService extends ChangeNotifier
       _streamRecoveryUsed = false;
     }
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) visualTracking.invalidateStream('En segundo plano');
     if (!_foreground) _unavailable('background');
     unawaited(_reconcile());
   }
@@ -1638,6 +1881,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     _enableRevision++;
     _save?.cancel();
     _watchdog?.cancel();
+    visualTracking.dispose();
     if (observeLifecycle) WidgetsBinding.instance.removeObserver(this);
     unawaited(
       _reconcile().whenComplete(() async {

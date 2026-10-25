@@ -29,6 +29,8 @@ export 'session/vr_spatial_tracking_settings.dart';
 export 'session/vr_stereo_spatial_inspector_hud.dart';
 export 'session/vr_tri_camera_frustum_painter.dart';
 export 'session/vr_tri_camera_live_inspector_card.dart';
+export 'session/vr_visual_marker_pose.dart';
+export 'session/vr_visual_tracking_session.dart';
 export 'state/vr_controller.dart';
 export 'state/vr_scene_state.dart';
 export 'translation/vr_translations.dart';

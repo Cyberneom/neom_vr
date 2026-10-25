@@ -3,6 +3,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:vrlizate_joystick/utils/constants/vr_joystick_constants.dart';
+
 /// Compact native-phone BLE wire format, not the core remote pose protocol.
 ///
 /// State is exactly 21 bytes: tag, uint16 flags, mode, uint32 sequence, uint32
@@ -345,6 +347,12 @@ class VrBleReassembler {
 /// active packet) are retained. Only adjacent, pending state snapshots with
 /// identical discrete controls/mode/revision may be replaced by newer axes.
 /// Control messages and every button/visibility edge retain their order.
+/// Explicit passthrough commands, passive passthrough snapshots and visor
+/// feedback each retain a separate latest pending value. A passive snapshot
+/// cannot replace a deliberate camera OFF command.
+/// Pending vision snapshots are lower priority than input and reliable control
+/// messages. They may be replaced or discarded under pressure, but a packet
+/// already being fragmented always finishes before another packet can start.
 /// Overflow/write/encoding errors close the writer and notify [onError] once.
 class VrBlePacketWriter {
   VrBlePacketWriter({
@@ -392,12 +400,20 @@ class VrBlePacketWriter {
       _queue.removeLast();
       _queue.add(packet);
     } else if (_replacePendingTelemetryControl(packet)) {
-      // Replaced an older queued visionTelemetry / passthroughControl snapshot
-      // in-place so high-rate spatial telemetry never overflows the BLE queue.
+      // Replaced an older queued value in the same semantic category. Camera
+      // commands cannot be replaced by passive snapshots or visor feedback.
     } else {
       if (pendingMessages >= maxPendingMessages) {
-        _fail(StateError('BLE packet queue overflow; connection must close.'));
-        return;
+        // Sensor snapshots are optional; congestion must not disconnect the
+        // controller or drop a button edge/authentication/mode acknowledgement.
+        if (_isDiscardableTelemetry(packet)) return;
+        _queue.removeWhere(_isDiscardableTelemetry);
+        if (pendingMessages >= maxPendingMessages) {
+          _fail(
+            StateError('BLE packet queue overflow; connection must close.'),
+          );
+          return;
+        }
       }
       _queue.add(packet);
     }
@@ -423,15 +439,40 @@ class VrBlePacketWriter {
   static String? _telemetryControlType(Uint8List packet) {
     if (packet.isEmpty || packet[0] != VrBleWireCodec._controlTag) return null;
     try {
-      final text = utf8.decode(packet.sublist(1), allowMalformed: true);
-      if (text.contains('"vrlizate.visionTelemetry"')) {
-        return 'vrlizate.visionTelemetry';
+      final value = jsonDecode(utf8.decode(packet.sublist(1)));
+      if (value is! Map<String, dynamic>) return null;
+      final type = value[VrJoystickConstants.fieldType];
+      if (type == VrJoystickConstants.visionTelemetryMessageType ||
+          type == VrJoystickConstants.passthroughStateMessageType) {
+        return type as String;
       }
-      if (text.contains('"vrlizate.passthroughControl"')) {
-        return 'vrlizate.passthroughControl';
+      // The real joystick type is `vrlizate.passthrough`. Retain the previous
+      // wire helper's legacy spelling as an alias, without changing payloads.
+      if (type == VrJoystickConstants.passthroughControlType ||
+          type == 'vrlizate.passthroughControl') {
+        final explicit =
+            value[VrJoystickConstants.fieldPassthroughCommand] == true;
+        return '${VrJoystickConstants.passthroughControlType}:'
+            '${explicit ? 'command' : 'snapshot'}';
       }
     } catch (_) {}
     return null;
+  }
+
+  static bool _isDiscardableTelemetry(Uint8List packet) =>
+      _telemetryControlType(packet) ==
+      VrJoystickConstants.visionTelemetryMessageType;
+
+  Uint8List _takeNextPacket() {
+    // Preserve the FIFO order of ALL reliable messages, including auth/mode
+    // controls. Only optional vision snapshots can be overtaken; do not select
+    // state packets ahead of earlier reliable controls and starve negotiation.
+    final packet = _queue.firstWhere(
+      (packet) => !_isDiscardableTelemetry(packet),
+      orElse: () => _queue.first,
+    );
+    _queue.remove(packet);
+    return packet;
   }
 
   static bool _canCoalesce(Uint8List previous, Uint8List next) {
@@ -453,7 +494,7 @@ class VrBlePacketWriter {
     _running = true;
     try {
       while (!_closed && _queue.isNotEmpty) {
-        _active = _queue.removeFirst();
+        _active = _takeNextPacket();
         final chunks = VrBleWireCodec.frame(
           _active!,
           messageId: _messageId,

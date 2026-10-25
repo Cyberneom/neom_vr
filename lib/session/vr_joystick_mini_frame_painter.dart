@@ -14,10 +14,13 @@ class VrJoystickMiniFramePainter extends CustomPainter {
     this.leftFootUv,
     this.rightFootUv,
     this.handUv,
+    this.showEstimates = false,
     this.frameWidth = 24,
     this.frameHeight = 18,
   });
 
+  /// Only for explicitly labeled simulation/heuristic overlays.
+  final bool showEstimates;
   final Uint8List? lumaBytes;
   final bool isFloorCamera;
   final bool isLiveActive;
@@ -54,12 +57,7 @@ class VrJoystickMiniFramePainter extends CustomPainter {
             pixelPaint.color = Color.fromARGB(255, r, g, b);
           }
           canvas.drawRect(
-            Rect.fromLTWH(
-              x * cellW,
-              y * cellH,
-              cellW + 0.6,
-              cellH + 0.6,
-            ),
+            Rect.fromLTWH(x * cellW, y * cellH, cellW + 0.6, cellH + 0.6),
             pixelPaint,
           );
         }
@@ -82,7 +80,7 @@ class VrJoystickMiniFramePainter extends CustomPainter {
     );
 
     // Draw real-time AI/CV detection markers
-    if (isFloorCamera) {
+    if (showEstimates && isFloorCamera) {
       final footPaint = Paint()
         ..color = const Color(0xFF34D399)
         ..style = PaintingStyle.stroke
@@ -109,7 +107,7 @@ class VrJoystickMiniFramePainter extends CustomPainter {
           footPaint,
         );
       }
-    } else {
+    } else if (showEstimates) {
       // Upper-body / Hand detection box (bottom-up hand + top visor)
       final visorRect = Rect.fromCenter(
         center: Offset(size.width * 0.50, size.height * 0.30),
@@ -159,7 +157,8 @@ class VrJoystickMiniFramePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant VrJoystickMiniFramePainter oldDelegate) {
-    return !identical(oldDelegate.lumaBytes, lumaBytes) ||
+    return oldDelegate.showEstimates != showEstimates ||
+        !identical(oldDelegate.lumaBytes, lumaBytes) ||
         oldDelegate.isFloorCamera != isFloorCamera ||
         oldDelegate.isLiveActive != isLiveActive ||
         oldDelegate.leftFootUv != leftFootUv ||
