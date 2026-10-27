@@ -59,10 +59,13 @@ bool _matches(Object? actual, String expected) {
 class VrBlePacketLink implements VrControllerLink {
   VrBlePacketLink({
     required Future<void> Function(Uint8List) writeChunk,
+    Future<void> Function(Uint8List chunk, {required bool reliable})?
+    writeChunkWithReliability,
     required this.onClose,
   }) {
     _writer = VrBlePacketWriter(
       writeChunk: writeChunk,
+      writeChunkWithReliability: writeChunkWithReliability,
       onError: (error) => _fail(
         VrControllerConnectionException(
           'Bluetooth: no se pudo enviar el paquete.',
@@ -109,6 +112,15 @@ class VrBlePacketLink implements VrControllerLink {
 
   /// True only after the optional 21-byte state flag was mutually negotiated.
   bool get edgeTurnIntentEnabled => _edgeTurnIntentEnabled;
+
+  /// True once negotiated ATT MTU >= 28 enables single-PDU 25-byte states.
+  bool get singlePacketStateEnabled =>
+      _reader.allowSinglePacketState && _writer.allowSinglePacketState;
+
+  void enableSinglePacketState() {
+    _reader.allowSinglePacketState = true;
+    _writer.allowSinglePacketState = true;
+  }
 
   void _enableEdgeTurnIntent() {
     _edgeTurnIntentEnabled = true;

@@ -268,6 +268,7 @@ class VrBleFragmentInterrupted extends FormatException {
 class VrBleReassembler {
   VrBleReassembler({
     this.maxChunkBytes = 20,
+    this.allowSinglePacketState = false,
     this.timeout = const Duration(seconds: 2),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now {
@@ -278,6 +279,11 @@ class VrBleReassembler {
   }
 
   final int maxChunkBytes;
+
+  /// When negotiated ATT MTU >= 28 (payload >= 25 bytes), accepts atomic
+  /// single-PDU 25-byte binary state packets (`0xB7, id, 0, 1, 0x01, ...20B`)
+  /// while keeping multi-chunk control framing at [maxChunkBytes].
+  bool allowSinglePacketState;
   final Duration timeout;
   final DateTime Function() _now;
   final _buffer = Uint8List(VrBleWireCodec.maxPacketBytes);
@@ -292,6 +298,17 @@ class VrBleReassembler {
   Uint8List? add(Uint8List chunk) {
     final now = _now();
     if (_deadline != null && !now.isBefore(_deadline!)) reset();
+    if (allowSinglePacketState &&
+        chunk.length == 4 + VrBleWireCodec.statePacketBytes &&
+        chunk[0] == 0xB7 &&
+        chunk[2] == 0 &&
+        chunk[3] == 1 &&
+        chunk[4] == VrBleWireCodec._stateTag) {
+      if (_messageId != null) {
+        return _interrupted('Incomplete or out-of-order BLE fragments.');
+      }
+      return chunk.sublist(4);
+    }
     if (chunk.length < 5 || chunk.length > maxChunkBytes || chunk[0] != 0xB7) {
       return _invalid('Invalid BLE ATT fragment header or length.');
     }
@@ -357,8 +374,10 @@ class VrBleReassembler {
 class VrBlePacketWriter {
   VrBlePacketWriter({
     required this.writeChunk,
+    this.writeChunkWithReliability,
     required this.onError,
     this.maxChunkBytes = 20,
+    this.allowSinglePacketState = false,
     this.maxPendingMessages = 8,
   }) {
     VrBleWireCodec._checkChunkSize(maxChunkBytes);
@@ -368,8 +387,18 @@ class VrBlePacketWriter {
   }
 
   final Future<void> Function(Uint8List chunk) writeChunk;
+
+  /// Optional fast-path callback distinguishing atomic continuous analog states
+  /// (`reliable: false` -> `WRITE_WITHOUT_RESPONSE`) from discrete button/mode
+  /// edges and multi-chunk control messages (`reliable: true` -> ACKed write).
+  final Future<void> Function(Uint8List chunk, {required bool reliable})?
+  writeChunkWithReliability;
   final void Function(Object error) onError;
   final int maxChunkBytes;
+
+  /// Frames 21-byte state snapshots as a single 25-byte ATT PDU once negotiated
+  /// MTU >= 28, cutting BLE air transactions in half (~70 ms -> ~10 ms).
+  bool allowSinglePacketState;
   final int maxPendingMessages;
 
   /// Enable only after the peer explicitly accepts the optional wire flag.
@@ -377,6 +406,7 @@ class VrBlePacketWriter {
   bool allowEdgeTurnIntent = false;
   final _queue = ListQueue<Uint8List>();
   Uint8List? _active;
+  Uint8List? _lastReliableDiscreteBytes;
   bool _running = false;
   bool _closed = false;
   int _messageId = 0;
@@ -490,20 +520,59 @@ class VrBlePacketWriter {
     return true;
   }
 
+  static const _discreteStateIndices = [1, 2, 3, 8, 9, 10, 11];
+
+  bool _matchesLastReliableDiscrete(Uint8List statePacket) {
+    final prev = _lastReliableDiscreteBytes;
+    if (prev == null) return false;
+    for (var i = 0; i < _discreteStateIndices.length; i++) {
+      if (statePacket[_discreteStateIndices[i]] != prev[i]) return false;
+    }
+    return true;
+  }
+
+  void _recordReliableDiscrete(Uint8List statePacket) {
+    final snap = _lastReliableDiscreteBytes ??= Uint8List(
+      _discreteStateIndices.length,
+    );
+    for (var i = 0; i < _discreteStateIndices.length; i++) {
+      snap[i] = statePacket[_discreteStateIndices[i]];
+    }
+  }
+
   Future<void> _drain() async {
     _running = true;
     try {
       while (!_closed && _queue.isNotEmpty) {
         _active = _takeNextPacket();
+        final packet = _active!;
+        final isSingleState =
+            allowSinglePacketState &&
+            packet[0] == VrBleWireCodec._stateTag &&
+            packet.length == VrBleWireCodec.statePacketBytes;
+        final chunkBytes = isSingleState
+            ? 4 + VrBleWireCodec.statePacketBytes
+            : maxChunkBytes;
+        final reliable = !isSingleState || !_matchesLastReliableDiscrete(packet);
         final chunks = VrBleWireCodec.frame(
-          _active!,
+          packet,
           messageId: _messageId,
-          maxChunkBytes: maxChunkBytes,
+          maxChunkBytes: chunkBytes,
         );
         _messageId = (_messageId + 1) & 0xFF;
         for (final chunk in chunks) {
           if (_closed) break;
-          await writeChunk(chunk);
+          if (writeChunkWithReliability != null) {
+            await writeChunkWithReliability!(chunk, reliable: reliable);
+          } else {
+            await writeChunk(chunk);
+          }
+        }
+        if (!_closed &&
+            reliable &&
+            packet[0] == VrBleWireCodec._stateTag &&
+            packet.length == VrBleWireCodec.statePacketBytes) {
+          _recordReliableDiscrete(packet);
         }
         _active = null;
       }

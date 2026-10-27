@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, VoidCallback;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:neom_ble/gatt/neom_gatt_server.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -11,6 +12,9 @@ import 'package:vrlizate/vrlizate.dart';
 import 'package:vrlizate_joystick/vrlizate_joystick.dart';
 
 import 'vr_ble_session.dart';
+import 'vr_hybrid_udp_link.dart';
+
+export 'vr_hybrid_udp_link.dart';
 
 const vrBleRxUuid = 'e0862f81-6d24-44dc-90c1-64f278674ce1';
 const vrBleTxUuid = 'e0862f82-6d24-44dc-90c1-64f278674ce1';
@@ -228,8 +232,15 @@ class VrBleHost {
   final Stream<BluetoothAdapterState>? adapterStates;
   final String serviceUuid;
   final _peers = <String, VrBleHostPeer>{};
+  final _peerMtus = <String, int>{};
+  VrHybridBleUdpHostLink? _activeHybridHost;
+  VoidCallback? _hybridQualityRelay;
   final ValueNotifier<bool> _syncingPeer = ValueNotifier<bool>(false);
+  final ValueNotifier<VrControllerLinkQuality?> _activeLinkQuality =
+      ValueNotifier<VrControllerLinkQuality?>(null);
   ValueListenable<bool> get syncingPeerListenable => _syncingPeer;
+  ValueListenable<VrControllerLinkQuality?> get activeLinkQualityListenable =>
+      _activeLinkQuality;
   StreamSubscription<GattServerEvent>? _events;
   StreamSubscription<BluetoothAdapterState>? _adapter;
   Future<void> _resetting = Future.value();
@@ -368,11 +379,43 @@ class VrBleHost {
     _syncingPeer.value = _peers.isNotEmpty;
   }
 
+  void _bindHybridQuality(VrHybridBleUdpHostLink? next) {
+    final prev = _activeHybridHost;
+    final relay = _hybridQualityRelay;
+    if (prev != null && relay != null) {
+      prev.linkQualityListenable.removeListener(relay);
+    }
+    _activeHybridHost = next;
+    _hybridQualityRelay = null;
+    if (_disposed) return;
+    if (next == null) {
+      _activeLinkQuality.value = null;
+      return;
+    }
+    void sync() {
+      if (!_disposed && identical(_activeHybridHost, next)) {
+        _activeLinkQuality.value = next.linkQualityListenable.value;
+      }
+    }
+
+    _hybridQualityRelay = sync;
+    next.linkQualityListenable.addListener(sync);
+    sync();
+  }
+
   void _onEvent(GattServerEvent event) {
     if (_disposed) return;
     final id = event.deviceId;
     if (id == null) return;
     switch (event.type) {
+      case GattServerEventType.duplexMtuChanged:
+        final mtu = event.mtu;
+        if (mtu != null) {
+          _peerMtus[id] = mtu;
+          if (mtu >= 28) {
+            _peers[id]?.link.enableSinglePacketState();
+          }
+        }
       case GattServerEventType.duplexClientSubscribed:
         if (_peers.containsKey(id)) return;
         if (_peers.length >= 4) {
@@ -380,6 +423,7 @@ class VrBleHost {
           return;
         }
         late final VrBlePacketLink link;
+        VrHybridBleUdpHostLink? hybrid;
         link = VrBlePacketLink(
           writeChunk: (chunk) async {
             // Native busy/backpressure is retried, never silently dropped.
@@ -391,28 +435,51 @@ class VrBleHost {
             throw StateError('Bluetooth TX ocupado. Reconecta el mando.');
           },
           onClose: () async {
+            if (hybrid != null && identical(_activeHybridHost, hybrid)) {
+              _bindHybridQuality(null);
+            }
             if (!identical(_peers[id]?.link, link)) return;
             _peers.remove(id);
             _updateSyncingPeer();
             await _gatt.disconnectDuplexClient(deviceId: id);
           },
         );
+        final negotiatedMtu = event.mtu ?? _peerMtus[id] ?? 23;
+        if (negotiatedMtu >= 28 || (event.maxNotificationBytes ?? 20) >= 25) {
+          link.enableSinglePacketState();
+        }
         _peers[id] = VrBleHostPeer(
           link: link,
           sessionToken: controller.sessionToken,
-          onAuthenticated: (link) =>
-              !_disposed &&
-              controller.attachControllerLink(
-                link,
-                sessionToken: controller.sessionToken,
-              ),
+          onAuthenticated: (bleLink) {
+            if (_disposed) return false;
+            final wrapped = VrHybridBleUdpHostLink(
+              bleLink: bleLink,
+              sessionToken: controller.sessionToken,
+            );
+            hybrid = wrapped;
+            final attached = controller.attachControllerLink(
+              wrapped,
+              sessionToken: controller.sessionToken,
+            );
+            if (!attached) {
+              unawaited(wrapped.close());
+              return false;
+            }
+            _bindHybridQuality(wrapped);
+            return true;
+          },
         );
         _updateSyncingPeer();
       case GattServerEventType.duplexData:
         final data = event.data;
         if (data != null) _peers[id]?.link.receive(data);
       case GattServerEventType.duplexClientUnsubscribed:
+        final peer = _peers.remove(id);
+        _updateSyncingPeer();
+        if (peer != null) unawaited(peer.link.close());
       case GattServerEventType.clientDisconnected:
+        _peerMtus.remove(id);
         final peer = _peers.remove(id);
         _updateSyncingPeer();
         if (peer != null) unawaited(peer.link.close());
@@ -422,6 +489,8 @@ class VrBleHost {
   }
 
   void _closePeers() {
+    _bindHybridQuality(null);
+    _peerMtus.clear();
     final peers = _peers.values.toList();
     for (final peer in peers) {
       unawaited(peer.link.close());
@@ -445,6 +514,7 @@ class VrBleHost {
     _shouldRun = false;
     _closePeers();
     _syncingPeer.dispose();
+    _activeLinkQuality.dispose();
     await _events?.cancel();
     await _adapter?.cancel();
     await _resetting;
@@ -550,10 +620,17 @@ Future<VrControllerLink> _connectVrBleController(
     final channel = VrBlePacketLink(
       writeChunk: (chunk) => receive.write(
         chunk,
-        // Every packet spans multiple ordered fragments. WRITE_NO_RESPONSE can
-        // report local acceptance while a fragment is lost under congestion;
-        // prefer the peripheral's ATT acknowledgement to pace the next write.
         withoutResponse: !receive.properties.write,
+        timeout: 3,
+      ),
+      writeChunkWithReliability: (chunk, {required reliable}) => receive.write(
+        chunk,
+        // Single-PDU continuous analog samples use WRITE_NO_RESPONSE (~10 ms,
+        // 60 Hz); discrete button edges and multi-chunk control messages keep
+        // peripheral ATT acknowledgement.
+        withoutResponse: !reliable && receive.properties.writeWithoutResponse
+            ? true
+            : !receive.properties.write,
         timeout: 3,
       ),
       onClose: () async {
@@ -587,6 +664,14 @@ Future<VrControllerLink> _connectVrBleController(
       } catch (_) {
         /* Optional optimization, not required for correctness. */
       }
+      try {
+        final mtu = await target.requestMtu(64, timeout: 2);
+        if (mtu >= 28) channel.enableSinglePacketState();
+      } catch (_) {
+        /* Falls back safely to 20-byte fragmented states if refused. */
+      }
+    } else if (Platform.isIOS) {
+      if (target.mtuNow >= 28) channel.enableSinglePacketState();
     }
     attempt.check();
     if (!await tx.setNotifyValue(true, timeout: 5)) {
@@ -596,7 +681,10 @@ Future<VrControllerLink> _connectVrBleController(
     }
     final authenticated = await ready;
     attempt.check();
-    return authenticated;
+    return VrHybridBleUdpClientLink(
+      bleLink: authenticated,
+      sessionToken: invitation.sessionToken,
+    );
   } catch (_) {
     if (link != null) {
       await link.close();

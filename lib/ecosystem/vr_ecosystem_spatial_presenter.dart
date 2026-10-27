@@ -29,8 +29,13 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
     VrEcosystemSocialSource Function(VrEcosystemIdentity)? socialSourceFactory,
     this.onOpenCinema,
     VrLocalAvatarStore? avatarStore,
+    Future<Set<String>> Function()? avatarRewardLoader,
     this.pageSize = 3,
-  }) : _avatarRoom = VrAvatarRoomPresenter(session, store: avatarStore),
+  }) : _avatarRoom = VrAvatarRoomPresenter(
+         session,
+         store: avatarStore,
+         loadRewards: avatarRewardLoader,
+       ),
        _providerFactory = providerFactory ?? configuredContentProvider,
        _playbackFactory =
            playbackFactory ?? (() => createNeomContentPlayback()),

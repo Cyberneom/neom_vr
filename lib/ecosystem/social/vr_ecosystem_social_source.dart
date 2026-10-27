@@ -1,15 +1,12 @@
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:neom_core/data/implementations/app_hive_controller.dart';
 import 'package:neom_core/domain/model/post.dart';
-import 'package:neom_core/domain/use_cases/app_hive_service.dart';
 import 'package:neom_posts/data/hive/posts_hive_controller.dart';
 import 'package:neom_posts/data/sync/posts_sync_service.dart';
 import 'package:neom_posts/ui/upload/post_upload_controller.dart';
 import 'package:neom_timeline/ui/timeline_controller.dart';
-import 'package:sint/sint.dart';
 
 import '../auth/vr_ecosystem_session.dart';
+import '../storage/vr_hive_lease.dart';
 
 /// Host adapter to existing posts/timeline storage. Implementations own their
 /// listeners/controllers; the page owns the source returned by its factory.
@@ -31,7 +28,7 @@ class NeomVrEcosystemSocialSource extends VrEcosystemSocialSource {
   final PostsHiveController _storage = PostsHiveController();
   TimelineController? _timeline;
   VoidCallback? _removeListener;
-  _HiveLease? _hiveLease;
+  VrHiveLease? _hiveLease;
   VrPostsAccountLease? _accountLease;
   PostUploadController? _composer;
   int? _storageRevision;
@@ -58,10 +55,10 @@ class NeomVrEcosystemSocialSource extends VrEcosystemSocialSource {
   Future<void> initialize() async {
     identity.requireCurrent();
     if (_timeline != null) return;
-    await _HiveLease.prepare();
+    await VrHiveLease.prepare();
     identity.requireCurrent();
     if (_disposed || _timeline != null) return;
-    _hiveLease ??= _HiveLease.acquire();
+    _hiveLease ??= VrHiveLease.acquire();
     _accountLease = VrPostsAccountLease.acquire(
       storage: _storage,
       identity: identity,
@@ -189,53 +186,4 @@ class _AccountScope {
   _AccountScope(this.key);
   final (String, String, int) key;
   int borrowers = 0;
-}
-
-/// Borrow existing application services; remove only the binding this adapter
-/// created, after its final borrower leaves, and never close shared Hive boxes.
-class _HiveLease {
-  _HiveLease._(this.service);
-  final AppHiveService service;
-  static Future<void>? _preparation;
-  static final Map<AppHiveService, int> _owned = Map.identity();
-  bool _released = false;
-
-  static Future<void> prepare() {
-    // Borrowers retain their existing Hive path and initialization ownership.
-    if (Sint.isRegistered<AppHiveService>()) return Future<void>.value();
-    return _preparation ??= Hive.initFlutter().catchError((
-      Object error,
-      StackTrace stack,
-    ) {
-      _preparation = null;
-      Error.throwWithStackTrace(error, stack);
-    });
-  }
-
-  static _HiveLease acquire() {
-    if (!Sint.isRegistered<AppHiveService>()) {
-      final created = AppHiveController();
-      Sint.put<AppHiveService>(created, permanent: true);
-      _owned[created] = 0;
-    }
-    final service = Sint.find<AppHiveService>();
-    if (_owned.containsKey(service)) _owned[service] = _owned[service]! + 1;
-    return _HiveLease._(service);
-  }
-
-  void release() {
-    if (_released) return;
-    _released = true;
-    final borrowers = _owned[service];
-    if (borrowers == null) return;
-    if (borrowers > 1) {
-      _owned[service] = borrowers - 1;
-      return;
-    }
-    if (Sint.isRegistered<AppHiveService>() &&
-        identical(Sint.find<AppHiveService>(), service)) {
-      Sint.delete<AppHiveService>(force: true);
-    }
-    _owned.remove(service);
-  }
 }

@@ -7,3 +7,4 @@ export 'ble/vr_ble_transport.dart';
 export 'ble/vr_ble_wire.dart';
 export 'ble/vr_controller_contract.dart';
 export 'ble/vr_controller_pairing_store.dart';
+export 'ble/vr_hybrid_udp_link.dart';

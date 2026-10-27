@@ -10,11 +10,15 @@ import 'vr_local_avatar_store.dart';
 /// Adapts the SDK avatar editor to Home's gaze/gamepad action panels.
 /// The SDK owns the model/preview; the application owns identity and storage.
 class VrAvatarRoomPresenter {
-  VrAvatarRoomPresenter(this.session, {VrLocalAvatarStore? store})
-    : store = store ?? VrLocalAvatarStore();
+  VrAvatarRoomPresenter(
+    this.session, {
+    VrLocalAvatarStore? store,
+    this.loadRewards,
+  }) : store = store ?? VrLocalAvatarStore();
 
   final VrEcosystemSession session;
   final VrLocalAvatarStore store;
+  final Future<Set<String>> Function()? loadRewards;
   final ValueNotifier<VrAvatarAppearance?> appearance = ValueNotifier(null);
   VrAvatarAppearance? _savedAppearance;
   String? _appearanceOwner;
@@ -29,12 +33,19 @@ class VrAvatarRoomPresenter {
   int _generation = 0, _page = 0;
   int? _ownerRevision;
   bool _busy = false, _dirty = false;
+  Set<String> _rewards = const {};
+  String? _rewardMessage;
+  int _rewardPage = 0;
+  String? _rewardOwner;
+  int? _rewardRevision;
 
   String _ownerFor(VrEcosystemIdentity? identity) => identity == null
       ? 'local-guest'
       : jsonEncode([identity.uid, identity.profileId]);
 
   bool get _ownerCurrent =>
+      !_disposed &&
+      !session.isDisposed &&
       _owner != null &&
       _ownerRevision == session.revision &&
       _owner == _ownerFor(session.captureIdentity());
@@ -44,9 +55,11 @@ class VrAvatarRoomPresenter {
   /// Loads only the host's local appearance; it does not open the editor.
   /// The generation/owner checks also cover logout during storage acquisition.
   Future<void> prepareAppearance() {
+    if (_disposed || session.isDisposed) return Future<void>.value();
     final identity = session.captureIdentity();
     final owner = _ownerFor(identity);
     final revision = session.revision;
+    _ensureRewardScope(owner, revision);
     if (_disposed ||
         (_appearanceOwner == owner && _appearanceRevision == revision)) {
       return Future<void>.value();
@@ -77,16 +90,19 @@ class VrAvatarRoomPresenter {
   ) async {
     try {
       final profile = await store.read(owner: owner, profileId: profileId);
-      if (_disposed ||
-          generation != _appearanceGeneration ||
-          revision != session.revision ||
-          owner != _ownerFor(session.captureIdentity())) {
-        return;
-      }
+      bool current() =>
+          !_disposed &&
+          !session.isDisposed &&
+          generation == _appearanceGeneration &&
+          revision == session.revision &&
+          owner == _ownerFor(session.captureIdentity());
+      if (!current()) return;
+      await _refreshRewards(current);
+      if (!current()) return;
       _savedAppearance = profile.appearance;
       _appearanceOwner = owner;
       _appearanceRevision = revision;
-      appearance.value = profile.appearance;
+      appearance.value = _visibleAppearance(profile.appearance);
     } catch (_) {
       // Keep the neutral showcase. The editor reports storage failures and
       // offers retry without overwriting a corrupt persisted record.
@@ -96,13 +112,53 @@ class VrAvatarRoomPresenter {
     }
   }
 
+  VrAvatarAppearance _visibleAppearance(VrAvatarAppearance value) =>
+      value.cosmeticId == null || _rewards.contains(value.cosmeticId)
+      ? value
+      : value.copyWith(clearCosmetic: true);
+
+  void _ensureRewardScope(String owner, int revision) {
+    if (_rewardOwner == owner && _rewardRevision == revision) return;
+    _rewardOwner = owner;
+    _rewardRevision = revision;
+    _rewards = const {};
+    _rewardMessage = null;
+    _rewardPage = 0;
+  }
+
+  Future<bool> _refreshRewards(bool Function() current) async {
+    final loader = loadRewards;
+    if (loader == null) {
+      if (current()) {
+        _rewardMessage = 'La expedición todavía no está conectada a esta sala.';
+      }
+      return false;
+    }
+    try {
+      final unlocked = await loader();
+      if (!current()) return false;
+      _rewards = Set<String>.unmodifiable({
+        for (final cosmetic in VrAvatarCosmeticCatalog.all)
+          if (unlocked.contains(cosmetic.id)) cosmetic.id,
+      });
+      _rewardMessage = null;
+      return true;
+    } catch (_) {
+      if (current()) {
+        _rewardMessage =
+            'No se pudo leer el pasaporte. Tu diseño guardado se conserva; puedes reintentar.';
+      }
+      return false;
+    }
+  }
+
   void _publishAppearance({required bool saved}) {
     _appearanceGeneration++;
     _preparingAppearance = null;
     _appearanceOwner = _owner;
     _appearanceRevision = _ownerRevision;
     if (saved) _savedAppearance = _value!.appearance;
-    appearance.value = _value!.appearance;
+    appearance.value = _visibleAppearance(_value!.appearance);
   }
 
   VrHomeRoomContent? get content {
@@ -116,7 +172,10 @@ class VrAvatarRoomPresenter {
           padding: const EdgeInsets.all(24),
           child: Row(
             children: [
-              VrAvatarPreview(appearance: value.appearance, size: 230),
+              VrAvatarPreview(
+                appearance: _visibleAppearance(value.appearance),
+                size: 230,
+              ),
               const SizedBox(width: 24),
               Expanded(
                 child: Text(
@@ -151,16 +210,23 @@ class VrAvatarRoomPresenter {
     }
     final appearance = value.appearance;
     final prefs = value.preferences;
+    final reward = VrAvatarCosmeticCatalog.all[_rewardPage];
     return VrHomeRoomPresentation(
       title: room.title,
       subtitle: _page == 0
           ? 'Diseño del avatar'
           : _page == 2
           ? 'Colores y proporciones'
+          : _page == 3
+          ? 'Recompensas de expedición'
           : 'Preferencias de convivencia',
       description:
           _message ??
-          (_page != 1
+          (_page == 3
+              ? '${reward.title} · ${_rewardPage + 1}/4\n${reward.description}\n'
+                    '${_rewardMessage ?? (_rewards.contains(reward.id) ? 'Desbloqueado en este perfil.' : 'Completa la misión para desbloquearlo.')}\n'
+                    'Accesorio: ${VrAvatarCosmeticCatalog.byId(appearance.cosmeticId)?.title ?? 'ninguno'}'
+              : _page != 1
               ? 'Tu modelo 3D cambia en la plataforma de esta sala. Guarda para conservarlo en este dispositivo.'
               : 'Preferencias preparadas para multijugador; la voz y los avatares remotos aún no están conectados.'),
       actions: [
@@ -178,6 +244,10 @@ class VrAvatarRoomPresenter {
           ),
           const VrHomeRoomAction(id: 'details', label: 'Colores y rasgos →'),
           const VrHomeRoomAction(id: 'preferences', label: 'Convivencia →'),
+          const VrHomeRoomAction(
+            id: 'rewards',
+            label: 'Recompensas de expedición →',
+          ),
         ] else if (_page == 2) ...[
           const VrHomeRoomAction(id: 'accent', label: 'Color de detalles'),
           VrHomeRoomAction(
@@ -192,6 +262,24 @@ class VrAvatarRoomPresenter {
           VrHomeRoomAction(
             id: 'features',
             label: 'Rasgos: ${(appearance.featureScale * 100).round()} %',
+          ),
+          const VrHomeRoomAction(id: 'appearance', label: '← Apariencia'),
+        ] else if (_page == 3) ...[
+          const VrHomeRoomAction(id: 'reward.previous', label: '← Anterior'),
+          const VrHomeRoomAction(id: 'reward.next', label: 'Siguiente →'),
+          VrHomeRoomAction(
+            id: 'reward.equip',
+            label: appearance.cosmeticId == reward.id
+                ? 'Accesorio equipado'
+                : 'Equipar ${reward.title}',
+            enabled:
+                _rewards.contains(reward.id) &&
+                appearance.cosmeticId != reward.id,
+          ),
+          VrHomeRoomAction(
+            id: 'reward.clear',
+            label: 'Quitar accesorio',
+            enabled: appearance.cosmeticId != null,
           ),
           const VrHomeRoomAction(id: 'appearance', label: '← Apariencia'),
         ] else ...[
@@ -228,6 +316,7 @@ class VrAvatarRoomPresenter {
     final identity = session.captureIdentity();
     final owner = _ownerFor(identity);
     final ownerRevision = session.revision;
+    _ensureRewardScope(owner, ownerRevision);
     if (_owner != null && _owner != owner) {
       close();
       _message = 'La cuenta cambió. Vuelve a abrir el editor.';
@@ -236,6 +325,8 @@ class VrAvatarRoomPresenter {
     _busy = true;
     final generation = ++_generation;
     bool current() =>
+        !_disposed &&
+        !session.isDisposed &&
         generation == _generation &&
         ownerRevision == session.revision &&
         owner == _ownerFor(session.captureIdentity()) &&
@@ -250,6 +341,8 @@ class VrAvatarRoomPresenter {
           profileId: identity?.profileId ?? 'local-guest',
         );
         if (!current()) return;
+        await _refreshRewards(current);
+        if (!current()) return;
         _owner = owner;
         _ownerRevision = ownerRevision;
         _value = value;
@@ -259,11 +352,46 @@ class VrAvatarRoomPresenter {
         _dirty = false;
         _publishAppearance(saved: true);
       } else if (actionId == 'save') {
+        final cosmetic = _value!.appearance.cosmeticId;
+        if (cosmetic != null && cosmetic != _savedAppearance?.cosmeticId) {
+          if (!await _refreshRewards(current) || !current()) return;
+          if (!_rewards.contains(cosmetic)) {
+            _message =
+                'Este accesorio todavía no está desbloqueado en tu pasaporte.';
+            return;
+          }
+        }
         await store.write(owner: owner, value: _value!, isCurrent: current);
         if (!current()) return;
         _dirty = false;
         _publishAppearance(saved: true);
         _message = 'Diseño guardado en este dispositivo.';
+      } else if (actionId == 'rewards') {
+        await _refreshRewards(current);
+        if (!current()) return;
+        _page = 3;
+        _rewardPage = 0;
+      } else if (actionId == 'reward.previous' || actionId == 'reward.next') {
+        _rewardPage =
+            (_rewardPage + (actionId == 'reward.next' ? 1 : -1)) %
+            VrAvatarCosmeticCatalog.all.length;
+      } else if (actionId == 'reward.equip' || actionId == 'reward.clear') {
+        final cosmetic = VrAvatarCosmeticCatalog.all[_rewardPage];
+        if (actionId == 'reward.equip') {
+          if (!await _refreshRewards(current) || !current()) return;
+          if (!_rewards.contains(cosmetic.id)) {
+            _message = 'Completa la misión para desbloquear este accesorio.';
+            return;
+          }
+        }
+        _value = _value!.copyWith(
+          appearance: _value!.appearance.copyWith(
+            cosmeticId: actionId == 'reward.equip' ? cosmetic.id : null,
+            clearCosmetic: actionId == 'reward.clear',
+          ),
+        );
+        _dirty = true;
+        _publishAppearance(saved: false);
       } else if (actionId == 'preferences' ||
           actionId == 'appearance' ||
           actionId == 'details') {
@@ -354,7 +482,9 @@ class VrAvatarRoomPresenter {
     appearance.value =
         _appearanceRevision == session.revision &&
             _appearanceOwner == _ownerFor(session.captureIdentity())
-        ? _savedAppearance
+        ? (_savedAppearance == null
+              ? null
+              : _visibleAppearance(_savedAppearance!))
         : null;
     _value = null;
     _owner = null;

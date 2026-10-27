@@ -55,6 +55,7 @@ class VrEcosystemSession extends ChangeNotifier {
   bool _disposed = false;
 
   int get revision => _revision;
+  bool get isDisposed => _disposed;
 
   String? get _currentUid {
     if (!backendReady || loginService == null) return null;

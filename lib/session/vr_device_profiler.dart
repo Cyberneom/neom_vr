@@ -7,7 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 
 export 'package:vrlizate_scene/vrlizate_scene.dart'
-    show VrDeviceCapabilities, VrDisplayMode;
+    show
+        VrDeviceCapabilities,
+        VrDeviceClass,
+        VrDeviceFeatureProfile,
+        VrDisplayMode,
+        VrPopularDeviceCatalog;
 
 /// Catalog-based initial quality preference; this is not a hardware benchmark.
 /// Actual scene timings and physical headset calibration remain necessary.
@@ -17,13 +22,36 @@ class VrDeviceProfiler {
   static Future<void>? _initialization;
   static VrDeviceCapabilities? _capabilities;
   static VrDevicePerformanceProfile? _profile;
+  static VrDeviceFeatureProfile? _featureProfile;
 
   static VrDeviceCapabilities? get capabilities => _capabilities;
   static VrDevicePerformanceProfile? get profile => _profile;
+  static VrDeviceFeatureProfile get featureProfile =>
+      _featureProfile ?? VrPopularDeviceCatalog.resolve(_capabilities);
 
   /// Reads Android once, before runApp. Missing/slow native hosts keep defaults.
   /// Does not select a display mode or load/overwrite a user's saved preset.
   static Future<void> initialize() => _initialization ??= _readCapabilities();
+
+  /// Refreshes live Wi-Fi band, audio route, display mode, and thermal state
+  /// without resetting the startup quality profile.
+  static Future<VrDeviceCapabilities?> refreshRuntimeEnvironment() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return _capabilities;
+    }
+    final current = _capabilities;
+    if (current == null) return null;
+    try {
+      final response = await _channel
+          .invokeMethod<Object?>('readRuntimeEnvironment')
+          .timeout(const Duration(milliseconds: 800));
+      if (response is Map) {
+        _capabilities = current.copyWithRuntimeEnvironment(response);
+        _featureProfile = VrPopularDeviceCatalog.resolve(_capabilities);
+      }
+    } catch (_) {}
+    return _capabilities;
+  }
 
   static Future<void> _readCapabilities() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
@@ -39,7 +67,12 @@ class VrDeviceProfiler {
           manufacturer: device.manufacturer,
           model: device.model,
         );
-        status = _profile == null ? 'unknown_model' : 'catalog_match';
+        _featureProfile = VrPopularDeviceCatalog.resolve(device);
+        status = _profile != null
+            ? 'catalog_match'
+            : (_featureProfile!.isExplicitOrHardwareClassified
+                  ? 'feature_classified'
+                  : 'unknown_model');
       } else {
         status = 'invalid_response';
       }
@@ -53,7 +86,7 @@ class VrDeviceProfiler {
       status = 'invalid_response';
     }
     debugPrint(
-      '[VR_DEVICE] ${jsonEncode({'status': status, 'capabilities': _capabilities?.toJson(), 'profile': _profile?.id, 'initialTier': detectInitialPreset().tier.name, 'catalogDisplayMaxHz': _profile?.displayMaxHz, 'measuredFps': null})}',
+      '[VR_DEVICE] ${jsonEncode({'status': status, 'capabilities': _capabilities?.toJson(), 'profile': _profile?.id, 'featureLine': _featureProfile?.popularLineId, 'deviceClass': _featureProfile?.deviceClass.name, 'initialTier': detectInitialPreset().tier.name, 'catalogDisplayMaxHz': _profile?.displayMaxHz, 'measuredFps': null})}',
     );
   }
 
@@ -62,9 +95,14 @@ class VrDeviceProfiler {
     if (kIsWeb) return VrQualityPreset.medium;
     return switch (defaultTargetPlatform) {
       TargetPlatform.android =>
-        _profile == null
-            ? VrQualityPreset.medium
-            : VrQualityPreset.forTier(_profile!.initialTier),
+        _profile != null
+            ? VrQualityPreset.forTier(_profile!.initialTier)
+            : (_featureProfile != null &&
+                      _featureProfile!.isExplicitOrHardwareClassified
+                  ? VrQualityPreset.forTier(
+                      _featureProfile!.recommendedVisorTier,
+                    )
+                  : VrQualityPreset.medium),
       TargetPlatform.iOS => VrQualityPreset.high,
       TargetPlatform.macOS ||
       TargetPlatform.windows ||
@@ -103,5 +141,6 @@ class VrDeviceProfiler {
     _initialization = null;
     _capabilities = null;
     _profile = null;
+    _featureProfile = null;
   }
 }
