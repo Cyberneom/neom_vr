@@ -9,8 +9,17 @@ import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vector_math/vector_math.dart' as vm;
+import 'package:vrlizate/vrlizate.dart' show ControllerHand;
 import 'package:vrlizate_avatar/vrlizate_avatar.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
+import '../beacon/vr_desktop_autonomous_bridge.dart';
+import '../beacon/vr_desktop_beacon_client.dart';
+import '../beacon/vr_desktop_beacon_models.dart';
+import '../beacon/vr_desktop_beacon_wire.dart';
+import '../beacon/vr_desktop_capabilities.dart';
+import 'vr_device_profiler.dart';
+import 'vr_passthrough_camera_feed.dart'
+    show activeSharedPassthroughCameraSession;
 import 'vr_visual_tracking_session.dart';
 
 /// Platform seam keeps native camera acquisition outside the renderer package.
@@ -76,13 +85,21 @@ class AndroidVrSpatialTrackingPlatform
 /// the role selector. At least one visible scene must acquire a lease.
 class VrSpatialTrackingService extends ChangeNotifier
     with WidgetsBindingObserver
-    implements VrSpatialPoseSource, VrSceneRigSpatialBridge {
+    implements
+        VrSpatialPoseSource,
+        VrSceneRigSpatialBridge,
+        VrSceneHandPoseBridge {
   VrSpatialTrackingService({
     VrSpatialTrackingPlatform? platform,
     this.observeLifecycle = true,
     this.monotonicMicroseconds,
   }) : _platform = platform ?? AndroidVrSpatialTrackingPlatform() {
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
+    beaconClient.feedbackBuilder = _buildBeaconFeedback;
+    beaconClient.onInviteAuthenticated = _persistLastBeaconInvite;
+    beaconClient.addListener(_onBeaconStateChanged);
+    _beaconSub = beaconClient.solutions.listen(_onBeaconSolution);
+    _beaconDirectiveSub = beaconClient.directives.listen(_onBeaconDirective);
   }
 
   static const _ultrasonicChannel = MethodChannel('vrlizate/ultrasonic_sonar');
@@ -95,6 +112,21 @@ class VrSpatialTrackingService extends ChangeNotifier
   final _poses = StreamController<VrSpatialPose>.broadcast(sync: true);
   final _clock = Stopwatch()..start();
   final visualTracking = VrVisualTrackingSession();
+  late final VrDesktopBeaconClient beaconClient = VrDesktopBeaconClient(
+    monotonicMicroseconds: () => _nowUs,
+  );
+  StreamSubscription<VrTriNodeDepthSolution>? _beaconSub;
+  StreamSubscription<VrDesktopBridgeDirective>? _beaconDirectiveSub;
+  bool _wasBeaconConnected = false;
+  double _estimatedVisorFps = 60.0;
+  double? visorFpsOverride;
+  VrMobileNodeCapabilities? visorCapabilitiesOverride;
+  VrMobileNodeCapabilities? Function()? joystickCapabilitiesProvider;
+  String? Function()? castViewerUriProvider;
+  void Function(VrDesktopBridgeDirective? directive)? onBridgeDirectiveChanged;
+  vm.Vector3? _lastBeaconRoomPos;
+  final vm.Vector3 _pendingBeaconRoomDelta = vm.Vector3.zero();
+  String _activeExperienceLabel = 'Virtual Home (.vrlz)';
   int get _nowUs => monotonicMicroseconds?.call() ?? _clock.elapsedMicroseconds;
   StreamSubscription<dynamic>? _events;
   Future<void> _operations = Future<void>.value();
@@ -123,14 +155,30 @@ class VrSpatialTrackingService extends ChangeNotifier
       VrDeviceSensorPairProfile.s25VisorAndMotoEdgeJoystick();
   final VrTriCameraBodyFusionEngine bodyFusionEngine =
       VrTriCameraBodyFusionEngine(initialStatureMeters: 1.72);
-  final VrMultiCameraSpaceMapper spaceMapper = VrMultiCameraSpaceMapper();
+  final VrMultiCameraSpaceMapper spaceMapper = VrMultiCameraSpaceMapper(
+    showObjectBoundingBoxes: false,
+    temporalSmoothingAlpha: 0.22,
+  );
   final VrSyntheticLidarScanner syntheticLidarScanner =
       VrSyntheticLidarScanner();
+  final VrEMudraEngine eMudraEngine = VrEMudraEngine();
+  VrEMudraFusionState _latestEMudraState = VrEMudraFusionState.idle;
+  bool _showSpatialBoundingBoxes = false;
+  bool _preferUltraWideCamera = true;
+  bool _eMudraControlEnabled = true;
+  double _minAvailableCameraZoom = 0.6;
+  double _maxAvailableCameraZoom = 100.0;
+  double _currentCameraZoomRatio = 0.6;
+  double? _requestedCameraZoomRatio;
   late VrFullBodyKinematicState _latestBodyState = bodyFusionEngine.update(
     dtSeconds: 0.016,
   );
   double _passthroughMix = 0.0;
   static const passthroughPreferenceKey = 'vrlizate_passthrough_v1';
+  static const lastBeaconInvitePreferenceKey =
+      'vrlizate_last_beacon_invite_v1';
+  static const lastJoystickBeaconInvitePreferenceKey =
+      'vrlizate_last_joystick_beacon_invite_v1';
   Future<void>? _passthroughLoad;
   Future<void> _passthroughWrites = Future<void>.value();
   int _passthroughPreferenceRevision = 0;
@@ -146,6 +194,8 @@ class VrSpatialTrackingService extends ChangeNotifier
   double _visorObstacleDistanceMeters = 1.45;
   final double _visorObservedFloorDistanceMeters = 1.61;
   bool _visorHandDetected = false;
+  int _visorHandStreak = 0;
+  int _joystickHandStreak = 0;
   vm.Vector2 _visorHandUv = vm.Vector2(0.50, 0.58);
   String _joystickActiveCameraRole = 'rear_floor';
   Uint8List? _joystickRearMiniFrame;
@@ -292,12 +342,14 @@ class VrSpatialTrackingService extends ChangeNotifier
   void _beginSimulation() {
     if (_simulationActive) return;
     _simulationActive = true;
+    spaceMapper.showObjectBoundingBoxes = true;
     _seedInitialTriCameraSpace();
   }
 
   void clearSimulation() {
     if (!_simulationActive) return;
     _simulationActive = false;
+    spaceMapper.showObjectBoundingBoxes = _showSpatialBoundingBoxes;
     spaceMapper.clear();
     syntheticLidarScanner.clear();
     _joystickRearMiniFrame = null;
@@ -317,6 +369,495 @@ class VrSpatialTrackingService extends ChangeNotifier
   bool get enabled => _enabled;
   bool get enabling => _enabling;
   bool get tracking => _tracking;
+  bool get beaconConnected => beaconClient.isConnected;
+  VrTriNodeDepthSolution? get latestBeaconSolution =>
+      beaconClient.isConnected ? beaconClient.latestSolution : null;
+  VrDesktopBridgeDirective? get latestBridgeDirective =>
+      beaconClient.isConnected ? beaconClient.latestDirective : null;
+  bool get isVisorOpticalSlamOffloadedToDesktop =>
+      beaconClient.isConnected &&
+      (beaconClient.latestDirective?.offloadVisorOpticalSlamToBeacon ?? false);
+  double get autonomousPassthroughFloor => beaconClient.isConnected
+      ? (beaconClient.latestDirective?.autoPassthroughFloor ?? 0.0)
+      : 0.0;
+  double get recommendedVisorQualityScale => beaconClient.isConnected
+      ? (beaconClient.latestDirective?.recommendedVisorQualityScale ?? 1.0)
+      : 1.0;
+  VrTriDeviceTopologyMode? get activeTriDeviceTopologyMode =>
+      beaconClient.isConnected
+      ? beaconClient.latestDirective?.topologyMode
+      : null;
+  bool get isPcProjectorModeActive =>
+      beaconClient.isConnected &&
+      (beaconClient.latestDirective?.pcRendersStereoFrame ?? false);
+  VrEcosystemDeviceTier get activeEcosystemTier =>
+      beaconClient.activeEcosystemTier;
+  Uri? get connectedVaultCatalogUri => beaconClient.connectedVaultCatalogUri;
+  Uri? get connectedVaultVrlzIndexUri =>
+      beaconClient.connectedVaultVrlzIndexUri;
+  Uri? get connectedVaultWebLibraryUri =>
+      beaconClient.connectedVaultWebLibraryUri;
+
+  /// AI-estimated optimal stereo focus / HUD vergence distance in meters so
+  /// smartphone rendering adapts comfortably to active hand reach or desk range.
+  double get recommendedFocusDistanceMeters {
+    final sol = beaconClient.isConnected ? beaconClient.latestSolution : null;
+    if (sol != null) {
+      if (sol.rightHandConfidence >= 0.35 || sol.leftHandConfidence >= 0.35) {
+        final rz = sol.rightHandConfidence >= 0.35
+            ? (-sol.rightHandRelHead.z)
+            : 0.72;
+        final lz = sol.leftHandConfidence >= 0.35
+            ? (-sol.leftHandRelHead.z)
+            : 0.72;
+        return math.min(rz, lz).clamp(0.52, 1.45);
+      }
+      return sol.computerToVisorMeters.clamp(0.75, 2.20);
+    }
+    return 1.35;
+  }
+
+  void setActiveExperienceLabel(String label) {
+    if (label.trim().isEmpty) return;
+    _activeExperienceLabel = label.trim();
+  }
+
+  @override
+  VrTrackedHandsSnapshot? sampleTrackedHands() {
+    if (_disposed) return null;
+    if (beaconClient.isConnected) {
+      final beaconHands = beaconClient
+          .predictLatestSolution()
+          ?.toTrackedHandsSnapshot();
+      if (beaconHands != null && beaconHands.hasTrackedHand) {
+        return beaconHands;
+      }
+      // When Desktop Estación Faro is actively tracking, do not spawn 2D
+      // skin-color heuristic hands while the user's hands rest below the desk.
+      if (!_simulationActive) return null;
+    }
+    // Fallback to Visor Ultra-Wide camera / Joystick upward camera hand pose
+    // in standalone 1D/2D modes (requires >= 3 consecutive frames to avoid noise).
+    final visorConfirmed =
+        _visorHandDetected && (_simulationActive || _visorHandStreak >= 3);
+    final joyConfirmed =
+        _joystickHandConfidence >= 0.28 &&
+        (_simulationActive || _joystickHandStreak >= 3);
+    if (visorConfirmed || joyConfirmed) {
+      final uv = visorConfirmed ? _visorHandUv : _joystickHandUv;
+      final estDepth = visorConfirmed ? 0.58 : 0.62;
+      final rel = vm.Vector3(
+        (uv.x - 0.5) * 0.52,
+        (0.5 - uv.y) * 0.38 - 0.10,
+        -estDepth,
+      );
+      final conf = visorConfirmed
+          ? 0.58
+          : (_joystickHandConfidence * 1.5).clamp(0.32, 0.70);
+      return VrTrackedHandsSnapshot(
+        right: VrTrackedHandSample(
+          headRelativeMeters: rel,
+          confidence: conf,
+          raised: uv.y < 0.62,
+          pinchStrength:
+              _latestEMudraState.activeMudra == VrCanonicalEMudra.gyanConfirm
+              ? 0.90
+              : 0.0,
+        ),
+        timestampMicros: _nowUs,
+        sourceLabel: visorConfirmed
+            ? 'Cámara Visor Ultra-Wide'
+            : 'Cámara Joystick',
+      );
+    }
+    return null;
+  }
+
+  bool get showSpatialBoundingBoxes => _showSpatialBoundingBoxes;
+  bool get preferUltraWideCamera => _preferUltraWideCamera;
+  bool get eMudraControlEnabled => _eMudraControlEnabled;
+  double get minAvailableCameraZoom => _minAvailableCameraZoom;
+  double get maxAvailableCameraZoom => _maxAvailableCameraZoom;
+  double get currentCameraZoomRatio => _currentCameraZoomRatio;
+  double? get requestedCameraZoomRatio => _requestedCameraZoomRatio;
+  VrEMudraFusionState get latestEMudraState => _latestEMudraState;
+
+  /// Live zero-waste hierarchical Tri-Camera schedule ("Lazy Wakeup" +
+  /// Zoom-Aware Telephoto Shedding above `1.8x`).
+  VrTriCameraSensingSchedule get activeSensingSchedule {
+    final sol = beaconClient.isConnected ? beaconClient.latestSolution : null;
+    final desktopHandConf = sol == null
+        ? 0.0
+        : math.max(sol.leftHandConfidence, sol.rightHandConfidence);
+    return VrTriCameraSensingSchedule.compute(
+      beaconConnected: beaconClient.isConnected,
+      desktopHandConfidence: desktopHandConf,
+      headYawFromDesktopRadians: _accumulatedYawRadians,
+      visorZoomRatio: _currentCameraZoomRatio,
+      visorCameraActive:
+          _visorCameraPreviewEnabled || visualTracking.hasAnalysisWork,
+      hasLocalAnalysisConsumer: visualTracking.hasAnalysisWork,
+    );
+  }
+
+  /// True when the Visor's `ImageStream` actually needs to pull CPU/NPU frames:
+  /// - Always `false` (`0 Hz`) above `1.8x` telephoto zoom (`3x–100x` Space Zoom),
+  /// - `false` (`0 Hz`) when Desktop Faro already sees hands clearly (`>= 0.80`)
+  ///   and no local QR marker scan is active,
+  /// - `true` (`66 ms` / `15 Hz`) when turned away from PC or in standalone mode.
+  bool get shouldRunVisorImageStream {
+    if (!visualTracking.hasAnalysisWork) return false;
+    final activeQrCalibration =
+        visualTracking.markerDetectionEnabled && visualTracking.marker != null;
+    if (activeQrCalibration &&
+        _currentCameraZoomRatio <=
+            VrTriCameraSensingSchedule.maxHandSensingZoomRatio) {
+      return true;
+    }
+    return activeSensingSchedule.runVisorCvStream;
+  }
+
+  double get normalizedCameraZoom01 => VrOpticalZoomCurve.zoomRatioToNormalized(
+    _currentCameraZoomRatio,
+    minZoom: _minAvailableCameraZoom,
+    maxZoom: _maxAvailableCameraZoom,
+  );
+
+  void setShowSpatialBoundingBoxes(bool value) {
+    if (_disposed || _showSpatialBoundingBoxes == value) return;
+    _showSpatialBoundingBoxes = value;
+    spaceMapper.showObjectBoundingBoxes = value;
+    if (!value) {
+      spaceMapper.removeObject('desktop_faro_station');
+      spaceMapper.removeObject('user_hands_joystick');
+    }
+    _persistPassthroughPreferences();
+    notifyListeners();
+  }
+
+  void setPreferUltraWideCamera(bool value) {
+    if (_disposed || _preferUltraWideCamera == value) return;
+    _preferUltraWideCamera = value;
+    if (value && _minAvailableCameraZoom < 1.0) {
+      unawaited(setVisorCameraZoomRatio(_minAvailableCameraZoom));
+    } else if (!value && _currentCameraZoomRatio < 1.0) {
+      unawaited(setVisorCameraZoomRatio(1.0));
+    }
+    _persistPassthroughPreferences();
+    notifyListeners();
+  }
+
+  void setEMudraControlEnabled(bool value) {
+    if (_disposed || _eMudraControlEnabled == value) return;
+    _eMudraControlEnabled = value;
+    if (!value) eMudraEngine.reset();
+    notifyListeners();
+  }
+
+  void syncHardwareCameraZoomBounds({
+    required double minZoom,
+    required double maxZoom,
+    required double currentZoom,
+  }) {
+    if (_disposed) return;
+    final changed =
+        (_minAvailableCameraZoom - minZoom).abs() > 0.01 ||
+        (_maxAvailableCameraZoom - maxZoom).abs() > 0.05 ||
+        (_currentCameraZoomRatio - currentZoom).abs() > 0.01;
+    _minAvailableCameraZoom = minZoom;
+    _maxAvailableCameraZoom = maxZoom;
+    _currentCameraZoomRatio = currentZoom;
+    eMudraEngine.setNormalizedZoomBaseline(normalizedCameraZoom01);
+    if (changed) notifyListeners();
+  }
+
+  Future<void> setVisorCameraZoomRatio(double zoomRatio) async {
+    if (_disposed || !zoomRatio.isFinite) return;
+    final clamped = zoomRatio
+        .clamp(
+          math.min(_minAvailableCameraZoom, 0.5),
+          math.max(_maxAvailableCameraZoom, 100.0),
+        )
+        .toDouble();
+    _requestedCameraZoomRatio = clamped;
+    _currentCameraZoomRatio = clamped
+        .clamp(_minAvailableCameraZoom, _maxAvailableCameraZoom)
+        .toDouble();
+    eMudraEngine.setNormalizedZoomBaseline(normalizedCameraZoom01);
+    _syncLazyVisorStreamSchedule();
+    notifyListeners();
+    final session = activeSharedPassthroughCameraSession;
+    if (session != null) {
+      await session.setZoomRatio(clamped);
+    }
+  }
+
+  Future<void> setVisorCameraZoomNormalized(double normalized01) {
+    final target = VrOpticalZoomCurve.normalizedToZoomRatio(
+      normalized01,
+      minZoom: _minAvailableCameraZoom,
+      maxZoom: _maxAvailableCameraZoom,
+    );
+    return setVisorCameraZoomRatio(target);
+  }
+
+  void _evaluateTriCameraEMudras() {
+    if (_disposed || !_eMudraControlEnabled) return;
+    final now = _nowUs;
+    final schedule = activeSensingSchedule;
+    final observations = <VrEMudraCameraObservation>[];
+
+    // 1. Camera 1: Smartphone Visor Ultra-Wide / Passthrough optical observation
+    //    Gated by lower-central ergonomic ROI (u ∈ [0.18..0.82], v ∈ [0.30..0.96])
+    //    and shed automatically above 1.8x telephoto zoom!
+    final visorInRoi = VrHandRoiBounds.visorFrontalHeadsetRoi.containsUv(
+      _visorHandUv.x,
+      _visorHandUv.y,
+    );
+    if (_visorHandDetected &&
+        visorInRoi &&
+        _currentCameraZoomRatio <=
+            VrTriCameraSensingSchedule.maxHandSensingZoomRatio) {
+      observations.add(
+        VrEMudraCameraObservation(
+          cameraRole: VrEMudraCameraRole.visorUltraWide,
+          confidence: 0.66,
+          rightHand: VrHandMudraSignature.fromCoarsePose(
+            hand: ControllerHand.right,
+            isPinching: false,
+            isOpenPalm: _visorLiveEdgeCells >= 26,
+            depthMeters: 0.44,
+          ),
+          timestampMicros: now,
+        ),
+      );
+    }
+
+    // 2. Camera 2: Smartphone Joystick upward palmar observation (Lazy Wakeup)
+    if (schedule.runJoystickPalmarAssist && _joystickHandConfidence >= 0.18) {
+      observations.add(
+        VrEMudraCameraObservation(
+          cameraRole: VrEMudraCameraRole.joystickUpward,
+          confidence: (_joystickHandConfidence * 2.1).clamp(0.25, 0.82),
+          rightHand: VrHandMudraSignature.fromCoarsePose(
+            hand: ControllerHand.right,
+            isPinching: false,
+            depthMeters: 0.50,
+          ),
+          timestampMicros: now,
+        ),
+      );
+    }
+
+    // 3. Camera 3: PC Estación Faro 60 Hz 3D hand skeleton & gesture stream
+    final sol = beaconClient.isConnected ? beaconClient.latestSolution : null;
+    if (sol != null &&
+        (sol.leftHandConfidence >= 0.30 || sol.rightHandConfidence >= 0.30)) {
+      final hasLeft = sol.leftHandConfidence >= 0.30;
+      final hasRight = sol.rightHandConfidence >= 0.30;
+      final leftSig = hasLeft
+          ? VrHandMudraSignature.fromCoarsePose(
+              hand: ControllerHand.left,
+              isPinching: sol.leftPinchStrength >= 0.68,
+              isOpenPalm:
+                  sol.leftHandRaised && sol.leftPinchStrength < 0.25,
+              depthMeters: sol.leftHandRelHead.length.clamp(0.18, 2.20),
+            )
+          : null;
+      final rightSig = hasRight
+          ? VrHandMudraSignature.fromCoarsePose(
+              hand: ControllerHand.right,
+              isPinching: sol.rightPinchStrength >= 0.68,
+              isOpenPalm:
+                  sol.rightHandRaised && sol.rightPinchStrength < 0.25,
+              depthMeters: sol.rightHandRelHead.length.clamp(0.18, 2.20),
+            )
+          : null;
+      final span = (hasLeft && hasRight)
+          ? (sol.rightHandRelHead - sol.leftHandRelHead).length
+          : null;
+      observations.add(
+        VrEMudraCameraObservation(
+          cameraRole: VrEMudraCameraRole.desktopFaro,
+          confidence: math
+              .max(sol.leftHandConfidence, sol.rightHandConfidence)
+              .clamp(0.30, 0.98),
+          leftHand: leftSig,
+          rightHand: rightSig,
+          bimanualSpanMeters: span,
+          timestampMicros: now,
+        ),
+      );
+    }
+
+    final fused = eMudraEngine.fuseObservations(
+      observations,
+      minZoomRatio: _minAvailableCameraZoom,
+      maxZoomRatio: _maxAvailableCameraZoom,
+    );
+    _latestEMudraState = fused;
+
+    // Live Prana Telescope eMudra -> smoothly drives S25 Ultra 0.6x..100x zoom!
+    if (fused.activeMudra == VrCanonicalEMudra.pranaTelescopeZoom &&
+        _visorCameraPreviewEnabled &&
+        (fused.targetZoomRatio - _currentCameraZoomRatio).abs() > 0.04) {
+      unawaited(setVisorCameraZoomRatio(fused.targetZoomRatio));
+    }
+  }
+
+  VrVisorBeaconFeedback _buildBeaconFeedback() {
+    final autoVisorCaps =
+        visorCapabilitiesOverride ??
+        (VrDeviceProfiler.capabilities != null
+            ? VrMobileNodeCapabilities.fromDeviceCapabilities(
+                VrDeviceProfiler.capabilities,
+                role: 'visor',
+              )
+            : null);
+    return VrVisorBeaconFeedback(
+      timestampMicros: _nowUs,
+      visorOrientation: _latestHeadOrientation,
+      visorToJoystickMeters: _latestBodyState.headToJoystickDistanceMeters,
+      joystickConnected: _liveFusionUpdates > 0 || _simulationActive,
+      activeExperience: _activeExperienceLabel,
+      visorFps: visorFpsOverride ?? _estimatedVisorFps,
+      castViewerUri: castViewerUriProvider?.call(),
+      rttMs: beaconClient.measuredRttMs,
+      visorCapabilities: autoVisorCaps,
+      joystickCapabilities: joystickCapabilitiesProvider?.call(),
+    );
+  }
+
+  bool? _lastScheduledVisorStream;
+
+  void _syncLazyVisorStreamSchedule() {
+    final desired = shouldRunVisorImageStream;
+    if (_lastScheduledVisorStream == desired) return;
+    _lastScheduledVisorStream = desired;
+    final session = activeSharedPassthroughCameraSession;
+    if (session != null) {
+      unawaited(session.reconcileSensingSchedule());
+    }
+  }
+
+  void _onBeaconStateChanged() {
+    final nowConnected = beaconClient.isConnected;
+    if (!nowConnected) {
+      _lastBeaconRoomPos = null;
+      _pendingBeaconRoomDelta.setZero();
+      if (_wasBeaconConnected) {
+        _wasBeaconConnected = false;
+        onBridgeDirectiveChanged?.call(null);
+      }
+    } else if (!_wasBeaconConnected) {
+      _wasBeaconConnected = true;
+      onBridgeDirectiveChanged?.call(beaconClient.latestDirective);
+    }
+    _syncLazyVisorStreamSchedule();
+    if (!_disposed) notifyListeners();
+  }
+
+  void _onBeaconDirective(VrDesktopBridgeDirective directive) {
+    if (_disposed) return;
+    onBridgeDirectiveChanged?.call(directive);
+    notifyListeners();
+  }
+
+  void _onBeaconSolution(VrTriNodeDepthSolution solution) {
+    if (_disposed || !_foreground) return;
+    _rfBeaconSamples++;
+    _visorObstacleDistanceMeters = solution.deskClearanceMeters;
+
+    final roomPos = solution.visorRoomPosition;
+    final prev = _lastBeaconRoomPos;
+    if (prev == null) {
+      _lastBeaconRoomPos = roomPos;
+    } else {
+      final dx = (roomPos.x - prev.x).clamp(-0.20, 0.20);
+      final dy = (roomPos.y - prev.y).clamp(-0.15, 0.15);
+      final dz = (roomPos.z - prev.z).clamp(-0.20, 0.20);
+      _lastBeaconRoomPos = roomPos;
+      // Map +X user-right to -X (flutter_scene screenRight) and -Z forward to -Z
+      _pendingBeaconRoomDelta.x = (_pendingBeaconRoomDelta.x - dx).clamp(
+        -0.45,
+        0.45,
+      );
+      _pendingBeaconRoomDelta.y = (_pendingBeaconRoomDelta.y + dy).clamp(
+        -0.30,
+        0.30,
+      );
+      _pendingBeaconRoomDelta.z = (_pendingBeaconRoomDelta.z + dz).clamp(
+        -0.45,
+        0.45,
+      );
+    }
+
+    final nowUs = _nowUs;
+    spaceMapper.pruneStaleObjects(nowMicros: nowUs);
+
+    if (_showSpatialBoundingBoxes) {
+      final forward = _headForwardVector();
+      final right = _headRightVector();
+      final deskDist = solution.deskClearanceMeters.clamp(0.25, 3.50);
+      if (solution.confidence >= 0.40) {
+        // Anchor the desktop station in world space relative to calibrated room
+        // origin rather than gluing it to head forward rotation.
+        spaceMapper.upsertObject(
+          VrDetectedSpatialObject.fromBoundingBox3D(
+            id: 'desktop_faro_station',
+            label:
+                'Estación Faro PC (${(deskDist * 100).round()} cm · d_CV=${solution.computerToVisorMeters.toStringAsFixed(2)}m)',
+            category: VrSpatialObjectCategory.table,
+            centerWorld: vm.Vector3(0.0, 0.42, -1.45),
+            extentsWorld: vm.Vector3(0.55, 0.42, 0.32),
+            confidence: solution.confidence.clamp(0.40, 1.0),
+            sourceCameraId: VrSceneConstants.cameraSourceVisorFront,
+          ),
+          timestampMicros: nowUs,
+        );
+      }
+
+      final bestHandConf = math.max(
+        solution.leftHandConfidence,
+        solution.rightHandConfidence,
+      );
+      if (bestHandConf >= 0.42) {
+        final domHand =
+            solution.rightHandConfidence >= solution.leftHandConfidence
+            ? solution.rightHandRelHead
+            : solution.leftHandRelHead;
+        final handWorld =
+            _latestHeadPosition +
+            forward * (-domHand.z).clamp(0.20, 1.10) +
+            right * domHand.x +
+            vm.Vector3(0.0, domHand.y, 0.0);
+        spaceMapper.upsertObject(
+          VrDetectedSpatialObject.fromBoundingBox3D(
+            id: 'user_hands_joystick',
+            label:
+                'Manos IA Faro (d_VJ=${(solution.visorToJoystickMeters * 100).round()} cm · ${solution.gesture.name})',
+            category: VrSpatialObjectCategory.handController,
+            centerWorld: handWorld,
+            extentsWorld: vm.Vector3(0.20, 0.11, 0.12),
+            confidence: bestHandConf.clamp(0.42, 1.0),
+            sourceCameraId: VrSceneConstants.cameraSourceJoystickFront,
+          ),
+          timestampMicros: nowUs,
+        );
+      } else {
+        spaceMapper.removeObject('user_hands_joystick');
+      }
+    }
+
+    _evaluateTriCameraEMudras();
+    _syncLazyVisorStreamSchedule();
+
+    _lastVerificationReport =
+        'Estación Faro Desktop 60 Hz · d_CV=${solution.computerToVisorMeters.toStringAsFixed(2)}m · '
+        'd_CJ=${solution.computerToJoystickMeters.toStringAsFixed(2)}m · '
+        'd_VJ=${solution.visorToJoystickMeters.toStringAsFixed(2)}m · '
+        'eMudra=${_latestEMudraState.activeMudra.name}';
+  }
   bool get hasVisibleScene => _leases > 0 && _foreground;
   String get reason => _reason;
   vm.Vector3 get cameraToEyeTranslation => _cameraToEye.clone();
@@ -365,6 +906,10 @@ class VrSpatialTrackingService extends ChangeNotifier
     required bool nativeVioTracking,
   }) {
     _rigImuFrames++;
+    if (dtSeconds > 0.002 && dtSeconds < 0.25) {
+      final instantFps = (1.0 / dtSeconds).clamp(10.0, 120.0);
+      _estimatedVisorFps = _estimatedVisorFps * 0.88 + instantFps * 0.12;
+    }
     if (!nativeVioTracking) {
       _accumulatedYawRadians = -rigYaw;
       _accumulatedPitchRadians = -rigPitch;
@@ -384,6 +929,12 @@ class VrSpatialTrackingService extends ChangeNotifier
     final targetEyeY = _latestBodyState.headHeightMeters;
     final dy = _simulationActive ? (targetEyeY - rigEyeCenter.y) * 0.25 : 0.0;
     delta.y = dy;
+    if (!nativeVioTracking && beaconClient.isConnected) {
+      delta.x += _pendingBeaconRoomDelta.x;
+      delta.y += _pendingBeaconRoomDelta.y;
+      delta.z += _pendingBeaconRoomDelta.z;
+      _pendingBeaconRoomDelta.setZero();
+    }
 
     _latestHeadPosition = vm.Vector3(
       rigEyeCenter.x + delta.x,
@@ -484,6 +1035,16 @@ class VrSpatialTrackingService extends ChangeNotifier
     final revision = _passthroughPreferenceRevision;
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (_disposed) return;
+      final savedBeaconRaw = prefs.getString(lastBeaconInvitePreferenceKey);
+      if (savedBeaconRaw != null && beaconClient.rememberedInvite == null) {
+        final savedInvite = VrDesktopBeaconPairingInvite.tryParse(
+          savedBeaconRaw,
+        );
+        if (savedInvite != null) {
+          beaconClient.enableAutoReconnect(savedInvite);
+        }
+      }
       final encoded = prefs.getString(passthroughPreferenceKey);
       if (_disposed ||
           revision != _passthroughPreferenceRevision ||
@@ -503,6 +1064,13 @@ class VrSpatialTrackingService extends ChangeNotifier
       }
       _visorCameraPreviewEnabled = enabled;
       _passthroughMix = enabled ? mix.toDouble() : 0;
+      if (state['showBoundingBoxes'] is bool) {
+        _showSpatialBoundingBoxes = state['showBoundingBoxes'] as bool;
+        spaceMapper.showObjectBoundingBoxes = _showSpatialBoundingBoxes;
+      }
+      if (state['preferUltraWide'] is bool) {
+        _preferUltraWideCamera = state['preferUltraWide'] as bool;
+      }
       spaceMapper.applyControllerPassthroughMix(_passthroughMix);
       notifyListeners();
     } catch (error) {
@@ -514,6 +1082,8 @@ class VrSpatialTrackingService extends ChangeNotifier
     final encoded = jsonEncode({
       'cameraEnabled': _visorCameraPreviewEnabled,
       'mix': _visorCameraPreviewEnabled ? _passthroughMix : 0.0,
+      'showBoundingBoxes': _showSpatialBoundingBoxes,
+      'preferUltraWide': _preferUltraWideCamera,
     });
     // Ordered, immediate writes: an earlier ON cannot finish after a newer OFF.
     _passthroughWrites = _passthroughWrites.then((_) async {
@@ -524,6 +1094,17 @@ class VrSpatialTrackingService extends ChangeNotifier
       } catch (error) {
         debugPrint('Could not save passthrough preference: $error');
       }
+    });
+  }
+
+  void _persistLastBeaconInvite(VrDesktopBeaconPairingInvite invite) {
+    beaconClient.enableAutoReconnect(invite, connectImmediately: false);
+    final raw = invite.toUri().toString();
+    _passthroughWrites = _passthroughWrites.then((_) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(lastBeaconInvitePreferenceKey, raw);
+      } catch (_) {}
     });
   }
 
@@ -549,7 +1130,10 @@ class VrSpatialTrackingService extends ChangeNotifier
   void ingestLiveVisorCameraFrame(CameraImage image) {
     if (_disposed || !_foreground || image.planes.isEmpty) return;
     final now = _nowUs;
-    if (now - _lastVisorAnalysisUs < 100000) return;
+    final minIntervalUs = isVisorOpticalSlamOffloadedToDesktop
+        ? 400000
+        : 100000;
+    if (now - _lastVisorAnalysisUs < minIntervalUs) return;
     if (image.width < 32 || image.height < 32) return;
     _lastVisorAnalysisUs = now;
     final y = image.planes.first;
@@ -608,8 +1192,11 @@ class VrSpatialTrackingService extends ChangeNotifier
     }
     _visorCamFrames++;
     _visorLiveEdgeCells = edges;
-    _visorHandDetected = skin >= 5;
+    final hasSkinCluster = skin >= 8;
+    _visorHandStreak = hasSkinCluster ? (_visorHandStreak + 1).clamp(0, 30) : 0;
+    _visorHandDetected = hasSkinCluster;
     if (_visorHandDetected) _visorHandUv = vm.Vector2(sumU / skin, sumV / skin);
+    _evaluateTriCameraEMudras();
     _triggerUltrasonicPingIfDue();
     notifyListeners();
   }
@@ -782,6 +1369,9 @@ class VrSpatialTrackingService extends ChangeNotifier
         handV != null &&
         handV.isFinite;
     _joystickHandConfidence = handValid ? handConfidence.clamp(0.0, .35) : 0;
+    _joystickHandStreak = (_joystickHandConfidence >= 0.28)
+        ? (_joystickHandStreak + 1).clamp(0, 30)
+        : 0;
     if (handValid) {
       _joystickHandUv = vm.Vector2(
         handU.clamp(0.0, 1.0),
@@ -792,6 +1382,7 @@ class VrSpatialTrackingService extends ChangeNotifier
     // extrinsics or reliable depth. Do not convert them into physical walking,
     // room geometry, RF measurements, or a tracking pose.
     _latestBodyState = bodyFusionEngine.update(dtSeconds: dt);
+    _evaluateTriCameraEMudras();
     _lastVerificationReport =
         'IMU y mando activos · óptica 2D estimada · '
         'fusión $_liveFusionUpdates / omitidos $_liveFusionDropped · RF sin mediciones';
@@ -1511,7 +2102,19 @@ class VrSpatialTrackingService extends ChangeNotifier
 
   String get statusText {
     if (_enabling) return 'Comprobando cámara y compatibilidad…';
+    if (_tracking && beaconClient.isConnected) {
+      final d = beaconClient.latestSolution?.computerToVisorMeters;
+      return '6DoF + Faro Desktop IA (${d?.toStringAsFixed(2) ?? "1.50"} m)';
+    }
     if (_tracking) return '6DoF activo · movimiento físico de cabeza';
+    if (beaconClient.isConnected) {
+      final d =
+          beaconClient.latestSolution?.computerToVisorMeters.toStringAsFixed(
+            2,
+          ) ??
+          '1.50';
+      return 'Estación Faro 6DoF · d_CV=$d m · Manos IA activas';
+    }
     return switch (_reason.toLowerCase()) {
       'disabled' => '3DoF · orientación y mando',
       'ready' ||
@@ -1881,6 +2484,10 @@ class VrSpatialTrackingService extends ChangeNotifier
     _enableRevision++;
     _save?.cancel();
     _watchdog?.cancel();
+    beaconClient.removeListener(_onBeaconStateChanged);
+    unawaited(_beaconSub?.cancel());
+    unawaited(_beaconDirectiveSub?.cancel());
+    beaconClient.dispose();
     visualTracking.dispose();
     if (observeLifecycle) WidgetsBinding.instance.removeObserver(this);
     unawaited(

@@ -57,6 +57,8 @@ dependency_overrides:
     path: ../vrlizate_home
   vrlizate_cast:
     path: ../vrlizate_cast
+  flutter_webrtc:
+    path: ../vrlizate_cast/third_party/flutter_webrtc
   vrlizate_assistant:
     path: ../vrlizate_assistant
   vrlizate_apps:

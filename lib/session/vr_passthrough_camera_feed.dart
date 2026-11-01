@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vrlizate_joystick/vrlizate_joystick.dart';
+import 'package:vrlizate_scene/vrlizate_scene.dart' show VrOpticalZoomCurve;
 
 import '../utils/constants/vr_translation_constants.dart';
 import 'vr_spatial_tracking_service.dart';
@@ -32,6 +34,8 @@ class _CameraLease {
 VrPassthroughCameraSession? _sharedCameraSession;
 VrPassthroughCameraSession get _sharedSession =>
     _sharedCameraSession ??= VrPassthroughCameraSession();
+VrPassthroughCameraSession? get activeSharedPassthroughCameraSession =>
+    _sharedCameraSession;
 
 /// Serializes camera acquisition, lifecycle shutdown and ARCore exclusion.
 /// Preview remains a native texture. Optional marker analysis borrows frames
@@ -69,6 +73,164 @@ class VrPassthroughCameraSession extends ChangeNotifier
   bool _disposed = false;
   Future<void>? _closing;
   VrPassthroughCameraStatus _status = VrPassthroughCameraStatus.disabled;
+  double _minZoomLevel = 1.0;
+  double _maxZoomLevel = 1.0;
+  double _currentZoomLevel = 1.0;
+  double _desiredDisplayZoomLevel = 1.0;
+  bool _zoomOperationInFlight = false;
+  double? _queuedZoomRatio;
+  int _lastConfiguredIntervalMs = -1;
+
+  double get minZoomLevel => _minZoomLevel;
+  double get maxZoomLevel => _maxZoomLevel;
+  double get currentZoomLevel => _currentZoomLevel;
+  double get desiredDisplayZoomLevel => _desiredDisplayZoomLevel;
+
+  /// Zero-latency GPU residual zoom factor (`desired / committedHardware`) so
+  /// continuous `eMudra` sweeps from `0.6x` to `100x` render smoothly at 120 Hz
+  /// while the hardware Camera2 ISP catches up asynchronously.
+  double get gpuResidualZoomScale {
+    if (_currentZoomLevel <= 0.01 || !_desiredDisplayZoomLevel.isFinite) {
+      return 1.0;
+    }
+    return (_desiredDisplayZoomLevel / _currentZoomLevel).clamp(0.82, 1.35);
+  }
+
+  /// Re-evaluates whether the Visor's CV `ImageStream` should hibernate (`0 Hz`)
+  /// or wake up (`66 ms` low-latency ROI) after zoom or Desktop Faro state changes.
+  Future<void> reconcileSensingSchedule() {
+    if (_disposed || _controller == null) return Future<void>.value();
+    return _reconcile();
+  }
+
+  /// Selects the optimal rear [CameraDescription] when [preferUltraWide] is
+  /// requested:
+  /// 1. Prefers a public logical multi-camera that spans Ultra-Wide (`< 1.0x`,
+  ///    e.g. `0.5x–0.6x` `eyefish` ~120° FOV) up to telephoto (`100x` on
+  ///    Galaxy S25 Ultra) so zoom transitions require no camera reopen.
+  /// 2. Otherwise selects the public camera with the widest horizontal FOV /
+  ///    shortest focal length reported by Camera2 metadata.
+  @visibleForTesting
+  static CameraDescription selectPreferredCamera(
+    Iterable<CameraDescription> matching, {
+    required bool preferUltraWide,
+    List<Map<dynamic, dynamic>>? calibratedCameras,
+  }) {
+    final list = matching.toList(growable: false);
+    if (list.length <= 1 || !preferUltraWide) return list.first;
+
+    if (calibratedCameras != null && calibratedCameras.isNotEmpty) {
+      final byId = <String, Map<dynamic, dynamic>>{};
+      for (final cam in calibratedCameras) {
+        final id = cam['id']?.toString() ?? cam['cameraId']?.toString();
+        if (id != null && cam['isPublicCameraId'] != false) {
+          byId[id] = cam;
+        }
+      }
+      // Priority 1: Logical multi-camera supporting < 1.0x Ultra-Wide AND optical zoom
+      CameraDescription? bestLogical;
+      double bestMaxZoom = -1.0;
+      for (final desc in list) {
+        final meta = byId[desc.name];
+        final minZ = (meta?['minZoomRatio'] as num?)?.toDouble();
+        final maxZ = (meta?['maxZoomRatio'] as num?)?.toDouble() ?? 1.0;
+        if (minZ != null && minZ < 0.95 && maxZ > bestMaxZoom) {
+          bestMaxZoom = maxZ;
+          bestLogical = desc;
+        }
+      }
+      if (bestLogical != null) return bestLogical;
+
+      // Priority 2: Widest horizontal FOV / shortest focal length physical public camera
+      CameraDescription? widest;
+      double bestFov = -1.0;
+      for (final desc in list) {
+        final meta = byId[desc.name];
+        final fov = (meta?['estimatedHorizontalFovDeg'] as num?)?.toDouble();
+        if (fov != null && fov > bestFov) {
+          bestFov = fov;
+          widest = desc;
+        }
+      }
+      if (widest != null) return widest;
+    }
+
+    // Heuristic fallback when static metadata was not queried yet: check name hints
+    for (final desc in list) {
+      final lower = desc.name.toLowerCase();
+      if (lower.contains('ultra') ||
+          lower.contains('wide') ||
+          lower.contains('fisheye')) {
+        return desc;
+      }
+    }
+    return list.first;
+  }
+
+  /// Smoothly updates hardware optical/digital zoom on the active camera
+  /// (`[minZoomLevel .. maxZoomLevel]`, e.g. `0.6x .. 100.0x` on S25 Ultra),
+  /// applying immediate GPU micro-zoom (`gpuResidualZoomScale`) while hardware
+  /// Camera2 ISP catches up in `>= 2.2%` relative steps.
+  Future<void> setZoomRatio(double requestedZoom) async {
+    if (_disposed || !requestedZoom.isFinite) return;
+    final clamped = requestedZoom
+        .clamp(math.min(_minZoomLevel, 1.0), math.max(_maxZoomLevel, 1.0))
+        .toDouble();
+    final boundedDisplay = clamped
+        .clamp(_minZoomLevel, _maxZoomLevel)
+        .toDouble();
+    if ((_desiredDisplayZoomLevel - boundedDisplay).abs() > 0.001) {
+      _desiredDisplayZoomLevel = boundedDisplay;
+      if (!_disposed) notifyListeners();
+    }
+    _queuedZoomRatio = clamped;
+    if (_zoomOperationInFlight) return;
+    _zoomOperationInFlight = true;
+    try {
+      while (_queuedZoomRatio != null && !_disposed) {
+        final next = _queuedZoomRatio!;
+        _queuedZoomRatio = null;
+        final ctrl = _controller;
+        if (ctrl == null || !ctrl.value.isInitialized) break;
+        final target = next.clamp(_minZoomLevel, _maxZoomLevel).toDouble();
+        final relativeDelta =
+            (target - _currentZoomLevel).abs() /
+            math.max(0.5, _currentZoomLevel);
+        // Quantize IPC calls to >= 2.0% relative step unless landing on exact bounds
+        final atBound =
+            (target - _minZoomLevel).abs() < 0.01 ||
+            (target - _maxZoomLevel).abs() < 0.05 ||
+            (target - 1.0).abs() < 0.01;
+        if (!atBound && relativeDelta < 0.020) continue;
+        if ((target - _currentZoomLevel).abs() < 0.004) continue;
+        try {
+          final wasTelephoto = _currentZoomLevel > 1.80;
+          await ctrl.setZoomLevel(target);
+          _currentZoomLevel = target;
+          _desiredDisplayZoomLevel = _queuedZoomRatio != null
+              ? _queuedZoomRatio!.clamp(_minZoomLevel, _maxZoomLevel).toDouble()
+              : target;
+          for (final lease in _leases.values) {
+            lease.service?.syncHardwareCameraZoomBounds(
+              minZoom: _minZoomLevel,
+              maxZoom: _maxZoomLevel,
+              currentZoom: _currentZoomLevel,
+            );
+          }
+          final nowTelephoto = _currentZoomLevel > 1.80;
+          if (wasTelephoto != nowTelephoto) {
+            await _syncImageAnalysis();
+          }
+          if (!_disposed) notifyListeners();
+        } catch (error) {
+          debugPrint('[VrPassthroughCamera] setZoomLevel failed: $error');
+          break;
+        }
+      }
+    } finally {
+      _zoomOperationInFlight = false;
+    }
+  }
 
   static Future<bool> _requestPermission() async {
     var permission = await Permission.camera.status;
@@ -81,7 +243,7 @@ class VrPassthroughCameraSession extends ChangeNotifier
         camera,
         ResolutionPreset.medium,
         enableAudio: false,
-        fps: 15,
+        fps: 30,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
@@ -190,7 +352,32 @@ class VrPassthroughCameraSession extends ChangeNotifier
         await _releaseHardware();
         return;
       }
-      pending = _controllerFactory(matching.first);
+      final primaryService = _leases.values
+          .map((lease) => lease.service)
+          .whereType<VrSpatialTrackingService>()
+          .firstOrNull;
+      final preferUltraWide =
+          target == CameraLensDirection.back &&
+          (primaryService?.preferUltraWideCamera ?? true);
+      List<Map<dynamic, dynamic>>? calibratedCameras;
+      if (preferUltraWide && matching.length > 1 && primaryService != null) {
+        try {
+          final diag = await primaryService.readCameraCalibrationDiagnostics();
+          final rawList = diag['cameras'];
+          if (rawList is List) {
+            calibratedCameras = rawList
+                .whereType<Map>()
+                .map((m) => Map<dynamic, dynamic>.from(m))
+                .toList();
+          }
+        } catch (_) {}
+      }
+      final chosen = selectPreferredCamera(
+        matching,
+        preferUltraWide: preferUltraWide,
+        calibratedCameras: calibratedCameras,
+      );
+      pending = _controllerFactory(chosen);
       await pending.initialize();
       if (_desiredLens != target) {
         await pending.dispose();
@@ -198,6 +385,41 @@ class VrPassthroughCameraSession extends ChangeNotifier
         await _releaseHardware();
         return;
       }
+      var minZ = 1.0;
+      var maxZ = 1.0;
+      if (pending.cameraId >= 0) {
+        try {
+          minZ = await pending.getMinZoomLevel();
+          maxZ = await pending.getMaxZoomLevel();
+        } catch (_) {}
+      }
+      if (!minZ.isFinite || minZ <= 0) minZ = 1.0;
+      if (!maxZ.isFinite || maxZ < minZ) maxZ = math.max(1.0, minZ);
+      _minZoomLevel = minZ;
+      _maxZoomLevel = maxZ;
+
+      final requestedZoom = primaryService?.requestedCameraZoomRatio;
+      final initialZoom = requestedZoom != null
+          ? requestedZoom.clamp(minZ, maxZ)
+          : (preferUltraWide && minZ < 1.0 ? minZ : 1.0.clamp(minZ, maxZ));
+      _currentZoomLevel = initialZoom;
+      _desiredDisplayZoomLevel = initialZoom;
+      if (pending.cameraId >= 0 && (initialZoom - 1.0).abs() > 0.01) {
+        try {
+          await pending.setZoomLevel(initialZoom);
+        } catch (_) {
+          _currentZoomLevel = 1.0;
+          _desiredDisplayZoomLevel = 1.0;
+        }
+      }
+      for (final lease in _leases.values) {
+        lease.service?.syncHardwareCameraZoomBounds(
+          minZoom: _minZoomLevel,
+          maxZoom: _maxZoomLevel,
+          currentZoom: _currentZoomLevel,
+        );
+      }
+
       _controller = pending;
       pending = null;
       _lens = target;
@@ -249,7 +471,7 @@ class VrPassthroughCameraSession extends ChangeNotifier
         !_disposed &&
         _foreground &&
         _desiredLens != null &&
-        _analysisServices.any((s) => s.visualTracking.hasAnalysisWork);
+        _analysisServices.any((s) => s.shouldRunVisorImageStream);
     if (desired != _lastAnalysisEnabled) unawaited(_reconcile());
   }
 
@@ -258,20 +480,22 @@ class VrPassthroughCameraSession extends ChangeNotifier
     if (camera == null) return;
     final enabled =
         _foreground &&
-        _analysisServices.any((s) => s.visualTracking.hasAnalysisWork);
+        _analysisServices.any((s) => s.shouldRunVisorImageStream);
     _lastAnalysisEnabled = enabled;
+    const activeIntervalMs = 66; // ~15 Hz low-latency ROI (4.5x faster than legacy 300 ms)
     try {
       if (enabled && !camera.value.isStreamingImages) {
         final bounded = await VrCameraAnalysisBudget.configure(
           camera,
-          intervalMs: 300,
+          intervalMs: activeIntervalMs,
         );
+        _lastConfiguredIntervalMs = activeIntervalMs;
         debugPrint(
-          '[VrCameraAnalysisBudget] visor nativeAdmission=$bounded intervalMs=300',
+          '[VrCameraAnalysisBudget] visor nativeAdmission=$bounded intervalMs=$activeIntervalMs',
         );
         await camera.startImageStream((image) {
           for (final service in _analysisServices) {
-            if (service.visualTracking.hasAnalysisWork) {
+            if (service.shouldRunVisorImageStream) {
               service.visualTracking.ingestFrame(
                 image,
                 camera.description,
@@ -281,9 +505,18 @@ class VrPassthroughCameraSession extends ChangeNotifier
             }
           }
         });
+      } else if (enabled &&
+          camera.value.isStreamingImages &&
+          _lastConfiguredIntervalMs != activeIntervalMs) {
+        await VrCameraAnalysisBudget.configure(
+          camera,
+          intervalMs: activeIntervalMs,
+        );
+        _lastConfiguredIntervalMs = activeIntervalMs;
       } else if (!enabled && camera.value.isStreamingImages) {
         await camera.stopImageStream();
         await VrCameraAnalysisBudget.configure(camera, intervalMs: 0);
+        _lastConfiguredIntervalMs = 0;
       }
     } catch (error) {
       // A failed analyzer must leave the physical passthrough texture alive.
@@ -477,12 +710,20 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
                 child: CameraPreview(ctrl),
                 builder: (context, value, preview) {
                   final size = vrPassthroughPreviewSize(value);
+                  final residual = _session?.gpuResidualZoomScale ?? 1.0;
+                  final scaledPreview = (residual - 1.0).abs() > 0.005
+                      ? Transform.scale(
+                          scale: residual,
+                          alignment: Alignment.center,
+                          child: preview,
+                        )
+                      : preview;
                   return FittedBox(
                     fit: widget.fit,
                     child: SizedBox(
                       width: size.width,
                       height: size.height,
-                      child: preview,
+                      child: scaledPreview,
                     ),
                   );
                 },
@@ -503,7 +744,8 @@ class _VrPassthroughCameraFeedState extends State<VrPassthroughCameraFeed> {
                   hasPreview
                       ? (widget.lensDirection == CameraLensDirection.front
                             ? VrTranslationConstants.lensFrontLiveBadge
-                            : VrTranslationConstants.lensBackLiveBadge)
+                            : '${VrTranslationConstants.lensBackLiveBadge} · '
+                                  '${VrOpticalZoomCurve.lensStageLabel(_session?.currentZoomLevel ?? 1.0)}')
                       : (statusMessage ??
                             (widget.enableHardwareCamera
                                 ? VrTranslationConstants.cameraInitializingBadge

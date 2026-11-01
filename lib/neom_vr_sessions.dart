@@ -16,6 +16,20 @@ export 'package:vrlizate/vrlizate.dart'
         VrSessionWidgetBuilder,
         VrWidgetSessionAdapter;
 
+export 'beacon/vr_beacon_dead_reckoning.dart';
+export 'beacon/vr_beacon_joystick_link.dart';
+export 'beacon/vr_desktop_autonomous_bridge.dart';
+export 'beacon/vr_desktop_beacon_client.dart';
+export 'beacon/vr_desktop_beacon_models.dart';
+export 'beacon/vr_desktop_beacon_page.dart';
+export 'beacon/vr_desktop_beacon_station.dart';
+export 'beacon/vr_desktop_beacon_wire.dart';
+export 'beacon/vr_desktop_capabilities.dart';
+export 'beacon/vr_desktop_media_vault.dart';
+export 'beacon/vr_desktop_vision_platform.dart';
+export 'beacon/vr_fiducial_tag_codec.dart';
+export 'beacon/vr_private_lan_loopback_relay.dart';
+export 'beacon/vr_tri_node_depth_solver.dart';
 export 'injection/vr_bindings.dart';
 export 'navigation/vr_navigator.dart';
 export 'navigation/vr_routes.dart';

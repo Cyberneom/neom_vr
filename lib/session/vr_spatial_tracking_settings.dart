@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 
+import '../beacon/vr_desktop_beacon_models.dart';
+import '../beacon/vr_desktop_beacon_page.dart';
+import '../beacon/vr_desktop_beacon_wire.dart';
 import 'vr_spatial_tracking_service.dart';
 import 'vr_tri_camera_live_inspector_card.dart';
 
@@ -65,7 +70,11 @@ class VrSpatialTrackingSettingsButton extends StatelessWidget {
         textStyle: const TextStyle(fontSize: 11),
       ),
       icon: const Icon(Icons.view_in_ar_outlined, size: 15),
-      label: Text(service.enabled ? 'Sensado · activado' : 'Cámaras y sensado'),
+      label: Text(
+        service.beaconConnected
+            ? 'Sensado · Faro IA'
+            : (service.enabled ? 'Sensado · activado' : 'Cámaras y sensado'),
+      ),
     );
   }
 }
@@ -84,6 +93,8 @@ class VrSpatialTrackingSettingsPage extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 VrTriCameraLiveInspectorCard(service: service),
+                const SizedBox(height: 16),
+                _DesktopBeaconSettingsCard(service: service),
                 const SizedBox(height: 18),
                 SwitchListTile.adaptive(
                   key: const ValueKey('spatial_tracking_switch'),
@@ -181,6 +192,268 @@ class _MountOffsetSlider extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _DesktopBeaconSettingsCard extends StatefulWidget {
+  const _DesktopBeaconSettingsCard({required this.service});
+  final VrSpatialTrackingService service;
+
+  @override
+  State<_DesktopBeaconSettingsCard> createState() =>
+      _DesktopBeaconSettingsCardState();
+}
+
+class _DesktopBeaconSettingsCardState
+    extends State<_DesktopBeaconSettingsCard> {
+  final TextEditingController _pinController = TextEditingController();
+  final TextEditingController _inviteLinkController = TextEditingController();
+  VrDiscoveredDesktopBeacon? _selectedStation;
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    _inviteLinkController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connectSelected() async {
+    final client = widget.service.beaconClient;
+    final rawInvite = _inviteLinkController.text.trim();
+    if (rawInvite.isNotEmpty) {
+      final invite = VrDesktopBeaconPairingInvite.tryParse(rawInvite);
+      if (invite == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El enlace vrlizate://beacon no es válido.'),
+          ),
+        );
+        return;
+      }
+      await client.connectWithInvite(invite);
+      return;
+    }
+
+    final station =
+        _selectedStation ??
+        (client.discoveredStations.isNotEmpty
+            ? client.discoveredStations.first
+            : null);
+    if (station == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Primero pulsa «Buscar en Wi-Fi» o pega el enlace de tu Estación Faro.',
+          ),
+        ),
+      );
+      return;
+    }
+    await client.connect(
+      stationId: station.stationId,
+      stationName: station.stationName,
+      host: station.host,
+      port: station.port,
+      pin: _pinController.text.trim(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final client = widget.service.beaconClient;
+    return ListenableBuilder(
+      listenable: client,
+      builder: (context, _) {
+        final connected = client.isConnected;
+        final sol = client.latestSolution;
+        final stations = client.discoveredStations;
+        if (_selectedStation == null && stations.isNotEmpty) {
+          _selectedStation = stations.first;
+        }
+
+        return Card(
+          color: const Color(0xFF10192D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: connected ? const Color(0xFF00E5FF) : Colors.white12,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.radar_rounded,
+                      color: Color(0xFF00E5FF),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Estación Faro Desktop (Triangulación + IA de Manos)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      key: const ValueKey('open_desktop_beacon_station_button'),
+                      onPressed: () => openVrDesktopBeaconPage(context),
+                      icon: const Icon(Icons.desktop_mac_outlined, size: 16),
+                      label: const Text(
+                        'Modo Faro PC',
+                        style: TextStyle(fontSize: 11.5),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Usa tu computadora personal con VRlizate Desktop como tercer nodo fijo (0,0,0) para calcular profundidad PC↔Visor↔Joystick y detectar manos alzadas o gestos con IA mientras el Visor corre la experiencia .vrlz.',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                if (connected) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF081020),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Conectado a ${client.connectedStationName ?? "Estación Faro"} · ${client.packetsReceived} tramas 60 Hz',
+                          style: const TextStyle(
+                            color: Color(0xFF69F0AE),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        if (sol != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'd_CV=${sol.computerToVisorMeters.toStringAsFixed(2)} m · '
+                            'd_CJ=${sol.computerToJoystickMeters.toStringAsFixed(2)} m · '
+                            'd_VJ=${sol.visorToJoystickMeters.toStringAsFixed(2)} m · '
+                            'Gesto IA: ${sol.gesture.name}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('disconnect_desktop_beacon_button'),
+                      onPressed: client.disconnect,
+                      icon: const Icon(Icons.link_off_rounded, size: 16),
+                      label: const Text('Desconectar Estación Faro'),
+                    ),
+                  ),
+                ] else ...[
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        key: const ValueKey('scan_desktop_beacon_lan_button'),
+                        onPressed: client.isConnecting
+                            ? null
+                            : () => unawaited(client.scanLan()),
+                        icon: const Icon(Icons.wifi_find_rounded, size: 16),
+                        label: const Text('Buscar en Wi-Fi'),
+                      ),
+                      if (stations.isNotEmpty)
+                        for (final st in stations)
+                          ChoiceChip(
+                            label: Text('${st.stationName} (${st.host})'),
+                            selected:
+                                _selectedStation?.stationId == st.stationId,
+                            onSelected: (_) =>
+                                setState(() => _selectedStation = st),
+                          ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 145,
+                        child: TextField(
+                          key: const ValueKey('desktop_beacon_pin_field'),
+                          controller: _pinController,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          decoration: const InputDecoration(
+                            labelText: 'PIN (6 dígitos)',
+                            counterText: '',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          key: const ValueKey('desktop_beacon_invite_field'),
+                          controller: _inviteLinkController,
+                          decoration: const InputDecoration(
+                            labelText: 'O pega enlace vrlizate://beacon?...',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (client.lastError != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      client.lastError!,
+                      style: const TextStyle(
+                        color: Colors.amberAccent,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      key: const ValueKey('connect_desktop_beacon_button'),
+                      onPressed: client.isConnecting
+                          ? null
+                          : () => unawaited(_connectSelected()),
+                      icon: const Icon(Icons.link_rounded, size: 16),
+                      label: Text(
+                        client.isConnecting
+                            ? 'Conectando…'
+                            : 'Vincular Estación Faro',
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

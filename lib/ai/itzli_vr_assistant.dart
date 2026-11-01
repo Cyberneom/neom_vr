@@ -2,10 +2,34 @@ import 'package:vrlizate_scene/vrlizate_scene.dart';
 
 import 'saia_spatial_inference_bridge.dart';
 
+/// Continuous 3D movement command spoken to Itzli (replaces thumbstick/turn).
+enum VrVoiceMotionKind {
+  walkForward,
+  walkBackward,
+  strafeLeft,
+  strafeRight,
+  turnLeft,
+  turnRight,
+  turnAround,
+  stop,
+}
+
+/// Hands-free UI & navigation action spoken to Itzli (replaces buttons A/B/L).
+enum VrVoiceUiCommand {
+  openMenu,
+  closeMenu,
+  nextItem,
+  previousItem,
+  confirmSelect,
+  goBack,
+}
+
 /// Spatial Action determined by Itzli AI Assistant.
 enum ItzliActionType {
   jumpToWing,
   launchExperience,
+  moveInSpace,
+  uiCommand,
   changeLook,
   changeResolution,
   recenter,
@@ -22,6 +46,9 @@ class ItzliVrGuidance {
   final String? targetDemoTitle;
   final VrLook? targetLook;
   final VrQualityPreset? targetPreset;
+  final VrVoiceMotionKind? motionKind;
+  final double motionDurationSeconds;
+  final VrVoiceUiCommand? uiCommand;
   final double confidence;
 
   const ItzliVrGuidance({
@@ -32,8 +59,29 @@ class ItzliVrGuidance {
     this.targetDemoTitle,
     this.targetLook,
     this.targetPreset,
+    this.motionKind,
+    this.motionDurationSeconds = 2.2,
+    this.uiCommand,
     this.confidence = 0.95,
   });
+
+  String get summaryEs => switch (actionType) {
+    ItzliActionType.launchExperience =>
+      'Abrir experiencia: ${targetDemoTitle ?? targetDemoId ?? ""}',
+    ItzliActionType.jumpToWing =>
+      'Ir a zona: ${targetWingId ?? "Plaza Central"}',
+    ItzliActionType.moveInSpace =>
+      'Movimiento 3D: ${motionKind?.name ?? ""} (${motionDurationSeconds.toStringAsFixed(1)}s)',
+    ItzliActionType.uiCommand =>
+      'Acción UI: ${uiCommand?.name ?? ""}',
+    ItzliActionType.recenter => 'Recentrar horizonte',
+    ItzliActionType.changeLook =>
+      'Estilo visual: ${targetLook == VrLook.cyberpunk ? "Cyberpunk" : (targetLook == VrLook.stellar ? "Estelar" : (targetLook == VrLook.cinematic ? "Cinematográfico" : "Personalizado"))}',
+    ItzliActionType.changeResolution =>
+      'Calidad: ${targetPreset?.tier.name ?? "ultra"}',
+    ItzliActionType.switchCatalog2D => 'Catálogo 2D',
+    ItzliActionType.conversationalGuidance => 'Guía conversacional',
+  };
 }
 
 /// Metadata definition of an experience indexed by Itzli.
@@ -44,6 +92,7 @@ class _ItzliExperienceMetadata {
   final String wingName;
   final List<String> keywords;
   final String categoryDescription;
+  final bool directLaunchOnMention;
 
   const _ItzliExperienceMetadata({
     required this.id,
@@ -52,6 +101,7 @@ class _ItzliExperienceMetadata {
     required this.wingName,
     required this.keywords,
     required this.categoryDescription,
+    this.directLaunchOnMention = false,
   });
 }
 
@@ -428,24 +478,754 @@ class ItzliVrAssistant {
       categoryDescription:
           'Simulador de colisiones y dinámicas de cuerpos rígidos en microgravedad.',
     ),
+
+    // 🏛️ Plazas Famosas 360° & Centros Comerciales Distribuidos
+    _ItzliExperienceMetadata(
+      id: 'mall_plaza_artz_mx',
+      title: 'Plaza Artz Pedregal 360°',
+      wingId: 'center',
+      wingName: 'Plazas Famosas 360°',
+      keywords: [
+        'plaza artz',
+        'artz',
+        'pedregal',
+        'cdmx',
+        'jardines abiertos',
+        'plaza mexicana',
+      ],
+      categoryDescription:
+          'Jardines abiertos de varios niveles con espejos de agua y locales espaciales.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'mall_galleria_milano',
+      title: 'Galleria Vittorio Emanuele II',
+      wingId: 'center',
+      wingName: 'Plazas Famosas 360°',
+      keywords: [
+        'galleria',
+        'milano',
+        'milan',
+        'vittorio emanuele',
+        'italia',
+        'cupula de cristal',
+      ],
+      categoryDescription:
+          'Crucero octogonal clásico en Milán con bóveda de hierro y cristal.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'mall_dubai_atrium',
+      title: 'Grand Dubai Atrium',
+      wingId: 'center',
+      wingName: 'Plazas Famosas 360°',
+      keywords: [
+        'dubai',
+        'dubai mall',
+        'atrio dubai',
+        'acuario',
+        'cascada monumental',
+      ],
+      categoryDescription:
+          'Atrio monumental con cascada perlada y muro acuático panorámico.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'mall_marina_canal',
+      title: 'Marina Bay Canal Promenade',
+      wingId: 'center',
+      wingName: 'Plazas Famosas 360°',
+      keywords: [
+        'marina bay',
+        'marina canal',
+        'singapur',
+        'canal interior',
+        'promenade',
+      ],
+      categoryDescription:
+          'Paseo junto a canal interior con puentes peatonales y domo de cristal.',
+      directLaunchOnMention: true,
+    ),
+
+    // 🕹️ Juegos Insignia, Arcade & Calibración
+    _ItzliExperienceMetadata(
+      id: 'riviera_rush',
+      title: 'Riviera Rush',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'riviera rush',
+        'riviera',
+        'carreras',
+        'autos',
+        'conducir',
+        'velocidad',
+        'manejar',
+        'coche',
+      ],
+      categoryDescription:
+          'Conducción costera de alta velocidad en primera persona VR.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'legend_of_selma',
+      title: 'Legend of Selma',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'legend of selma',
+        'selma',
+        'zelda',
+        'espada',
+        'calabozo',
+        'rpg',
+      ],
+      categoryDescription:
+          'Aventura de exploración y fantasía en tercera y primera persona.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'doom_vr',
+      title: 'DOOM Classic VR',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'doom',
+        'doom vr',
+        'fps',
+        'disparos clasico',
+      ],
+      categoryDescription:
+          'Motor clásico DOOM renderizado estereoscópicamente.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'nes_vr',
+      title: 'NES Emulator VR',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'nes',
+        'nintendo',
+        'emulador',
+        'retro',
+        '8 bits',
+      ],
+      categoryDescription: 'Sala retro con emulador NES en pantalla gigante.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'open_source_flutterflip',
+      title: 'FlutterFlip 3D',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'flutterflip',
+        'pinball',
+        'flipper',
+      ],
+      categoryDescription: 'Mesa de pinball espacial 3D open-source.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'sunny_gardens',
+      title: 'Jardines Soleados',
+      wingId: 'west_media',
+      wingName: 'Ala Multimedia & Cine',
+      keywords: [
+        'sunny gardens',
+        'jardines soleados',
+        'jardin',
+        'flores',
+        'invernadero',
+      ],
+      categoryDescription: 'Paseo contemplativo entre jardines soleados.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'neon_bastion',
+      title: 'Bastión Neón',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'neon bastion',
+        'bastion neon',
+        'bastion',
+        'ciberdefensa',
+      ],
+      categoryDescription: 'Defensa táctica en fortaleza luminosa.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'dungeon_architect',
+      title: 'Arquitecto de Mazmorras',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'dungeon architect',
+        'mazmorras',
+        'mazmorra',
+        'arquitecto',
+      ],
+      categoryDescription: 'Diseño y exploración de mazmorras modulares 3D.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'fleet_admiral',
+      title: 'Almirante de Flota',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'fleet admiral',
+        'almirante',
+      ],
+      categoryDescription: 'Mando táctico naval y aeroespacial.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'open_source_arcade',
+      title: 'Galería Open Source',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'open source arcade',
+        'galeria open source',
+        'arcade open source',
+      ],
+      categoryDescription: 'Colección curada de juegos open-source adaptados a VR.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'viewer_calibration',
+      title: 'Calibración Óptica del Visor',
+      wingId: 'south_labs',
+      wingName: 'Ala Laboratorio SOTA',
+      keywords: [
+        'calibracion',
+        'calibrar visor',
+        'ipd',
+        'lentes',
+        'ajuste optico',
+      ],
+      categoryDescription: 'Ajuste de IPD, distorsión de lentes y horizonte del visor.',
+      directLaunchOnMention: true,
+    ),
+
+    // 🌍 Mundos 224×224 m & Expedición Open Neom
+    _ItzliExperienceMetadata(
+      id: 'open_neom_expedition',
+      title: 'Expedición Open Neom',
+      wingId: 'west_media',
+      wingName: 'Mundos & Expedición',
+      keywords: [
+        'expedicion',
+        'expedicion neom',
+        'open neom expedition',
+        'gran expedicion',
+      ],
+      categoryDescription: 'Travesía abierta por el mundo insignia de Open Neom.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_solar_city',
+      title: 'Ciudad Solar 224m',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'ciudad solar',
+        'solar city',
+        'solarpunk',
+        'energia solar',
+      ],
+      categoryDescription: 'Metrópolis ecológica bañada por el sol de 224×224 metros.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_rainforest',
+      title: 'Selva Biodomo',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'selva',
+        'rainforest',
+        'bosque tropical',
+        'jungla',
+        'amazonas',
+      ],
+      categoryDescription: 'Ecosistema selvático inmersivo con vegetación densa.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_neon_city',
+      title: 'Metrópolis Neón',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'ciudad neon',
+        'neon city',
+        'metropolis neon',
+      ],
+      categoryDescription: 'Distrito urbano nocturno con avenidas holográficas.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_lunar',
+      title: 'Base Lunar',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'base lunar',
+        'luna',
+        'crater lunar',
+        'artemis',
+      ],
+      categoryDescription: 'Estación científica sobre el regolito lunar.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_orbital_habitat',
+      title: 'Hábitat Orbital',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'habitat orbital',
+        'estacion espacial',
+      ],
+      categoryDescription: 'Anillo orbital con vistas directas al planeta.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_coral_station',
+      title: 'Estación Arrecife de Coral',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'arrecife',
+        'coral',
+        'submarino',
+        'oceano',
+        'bajo el agua',
+      ],
+      categoryDescription: 'Observatorio submarino rodeado de arrecifes vivos.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_polar_station',
+      title: 'Estación Polar Ártica',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'estacion polar',
+        'artico',
+        'antartida',
+        'hielo',
+        'aurora boreal',
+      ],
+      categoryDescription: 'Base polar bajo auroras boreales.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_sakura',
+      title: 'Santuario Sakura',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'sakura',
+        'cerezos',
+        'japon',
+        'templo japones',
+      ],
+      categoryDescription: 'Jardín tradicional de cerezos en flor.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_astral_library',
+      title: 'Biblioteca Astral',
+      wingId: 'east_prod',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'biblioteca astral',
+        'biblioteca cosmica',
+        'libros flotantes',
+      ],
+      categoryDescription: 'Archivo monumental de conocimiento suspendido en el cosmos.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_museum_court',
+      title: 'Gran Atrio del Museo',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'atrio del museo',
+        'corte del museo',
+        'escultura clasica',
+      ],
+      categoryDescription: 'Patio arquitectónico de exposiciones monumentales.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'ecosystems_festival_park',
+      title: 'Parque del Festival',
+      wingId: 'west_media',
+      wingName: 'Mundos 224×224 m',
+      keywords: [
+        'parque del festival',
+        'festival',
+        'concierto',
+        'escenario musical',
+      ],
+      categoryDescription: 'Explanada cultural con escenarios y sonido espacial.',
+      directLaunchOnMention: true,
+    ),
   ];
+
+  static double _resolveMotionDuration(String text) {
+    if (_matchesAny(text, [
+      'un poco',
+      'poquito',
+      'un paso',
+      'corto',
+      'despacio',
+    ])) {
+      return 1.1;
+    }
+    if (_matchesAny(text, [
+      'mucho',
+      'largo',
+      'bastante',
+      'lejos',
+      'sigue caminando',
+      'continuo',
+      'todo recto',
+    ])) {
+      return 4.0;
+    }
+    return 2.2;
+  }
 
   /// Interprets user natural language speech and resolves spatial guidance.
   ItzliVrGuidance interpretRequest(String naturalSpeech) {
     final text = _normalize(naturalSpeech);
+    if (text.isEmpty) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.conversationalGuidance,
+        speechResponse: 'Te escucho. Dime a dónde quieres ir o qué abrir.',
+      );
+    }
+
+    // 0. Immediate Stop / Freeze Locomotion (safety priority; never match preposition "para")
+    if (text == 'para' ||
+        text == 'parar' ||
+        _matchesAny(text, [
+          'alto',
+          'detente',
+          'frena',
+          'para ya',
+          'deja de caminar',
+          'deja de moverte',
+          'quedate quieto',
+          'quedate ahi',
+          'quieto',
+        ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Movimiento detenido.',
+        motionKind: VrVoiceMotionKind.stop,
+        motionDurationSeconds: 0,
+      );
+    }
+
+    // 0b. Hands-free UI & Menu Commands (no joystick needed)
+    if (text == 'menu' ||
+        _matchesAny(text, [
+          'abre el menu',
+          'abrir menu',
+          'mostrar menu',
+          'muestra el menu',
+          'menu sutil',
+          'menu rapido',
+          'ver menu',
+          'ver opciones',
+        ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Abriendo el menú sutil frente a tu mirada.',
+        uiCommand: VrVoiceUiCommand.openMenu,
+      );
+    }
+    if (_matchesAny(text, [
+      'cierra el menu',
+      'cerrar menu',
+      'oculta el menu',
+      'ocultar menu',
+      'quita el menu',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Ocultando el menú.',
+        uiCommand: VrVoiceUiCommand.closeMenu,
+      );
+    }
+    if (_matchesAny(text, [
+      'siguiente',
+      'opcion siguiente',
+      'siguiente opcion',
+      'avanza opcion',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Siguiente opción.',
+        uiCommand: VrVoiceUiCommand.nextItem,
+      );
+    }
+    if (_matchesAny(text, [
+      'anterior',
+      'opcion anterior',
+      'anterior opcion',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Opción anterior.',
+        uiCommand: VrVoiceUiCommand.previousItem,
+      );
+    }
+    if (_matchesAny(text, [
+      'seleccionar',
+      'selecciona',
+      'confirmar',
+      'confirma',
+      'aceptar',
+      'acepta',
+      'entra ahi',
+      'entrar ahi',
+      'entra aqui',
+      'entrar aqui',
+      'abrir eso',
+      'elige eso',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Confirmado.',
+        uiCommand: VrVoiceUiCommand.confirmSelect,
+      );
+    }
+    if (text == 'salir' ||
+        _matchesAny(text, [
+          'salir de la experiencia',
+          'sal de aqui',
+          'cerrar experiencia',
+          'cerrar aplicacion',
+          'volver atras',
+          'regresa atras',
+        ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: 'Saliendo de la vista actual.',
+        uiCommand: VrVoiceUiCommand.goBack,
+      );
+    }
+
+    // 0c. Hands-free 3D Spatial Locomotion (walk, strafe, turn, 180°)
+    final durationSec = _resolveMotionDuration(text);
+    if (_matchesAny(text, [
+      'media vuelta',
+      'date la vuelta',
+      'darse la vuelta',
+      '180 grados',
+      'voltea atras',
+      'mira atras',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Dando media vuelta.',
+        motionKind: VrVoiceMotionKind.turnAround,
+        motionDurationSeconds: 1.43,
+      );
+    }
+    if (_matchesAny(text, [
+      'gira a la izquierda',
+      'girar a la izquierda',
+      'voltea a la izquierda',
+      'mira a la izquierda',
+      'vuelta a la izquierda',
+      'rota a la izquierda',
+      'gira izquierda',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Girando a la izquierda.',
+        motionKind: VrVoiceMotionKind.turnLeft,
+        motionDurationSeconds: durationSec * 0.55,
+      );
+    }
+    if (_matchesAny(text, [
+      'gira a la derecha',
+      'girar a la derecha',
+      'voltea a la derecha',
+      'mira a la derecha',
+      'vuelta a la derecha',
+      'rota a la derecha',
+      'gira derecha',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Girando a la derecha.',
+        motionKind: VrVoiceMotionKind.turnRight,
+        motionDurationSeconds: durationSec * 0.55,
+      );
+    }
+    if (_matchesAny(text, [
+      'paso a la izquierda',
+      'muevete a la izquierda',
+      'desplazate a la izquierda',
+      'camina a la izquierda',
+      'a la izquierda',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Desplazándote a la izquierda.',
+        motionKind: VrVoiceMotionKind.strafeLeft,
+        motionDurationSeconds: durationSec,
+      );
+    }
+    if (_matchesAny(text, [
+      'paso a la derecha',
+      'muevete a la derecha',
+      'desplazate a la derecha',
+      'camina a la derecha',
+      'a la derecha',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Desplazándote a la derecha.',
+        motionKind: VrVoiceMotionKind.strafeRight,
+        motionDurationSeconds: durationSec,
+      );
+    }
+    if (_matchesAny(text, [
+      'retrocede',
+      'retroceder',
+      'hacia atras',
+      'camina atras',
+      'caminar atras',
+      'paso atras',
+      'echate para atras',
+      'alejate',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Retrocediendo con suavidad.',
+        motionKind: VrVoiceMotionKind.walkBackward,
+        motionDurationSeconds: durationSec,
+      );
+    }
+    if (_matchesAny(text, [
+      'camina',
+      'caminar',
+      'avanza',
+      'avanzar',
+      'hacia adelante',
+      'adelante',
+      'paso adelante',
+      'acercate',
+      'sigue recto',
+      'camina recto',
+    ])) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.moveInSpace,
+        speechResponse: 'Avanzando hacia adelante.',
+        motionKind: VrVoiceMotionKind.walkForward,
+        motionDurationSeconds: durationSec,
+      );
+    }
+
+    // Generic Famous Malls / Plazas 360° request before generic "plaza" home check
+    if (_matchesAny(text, [
+      'plazas famosas',
+      'plazas 360',
+      'centros comerciales',
+      'centro comercial',
+      'malls famosos',
+      'locales en renta',
+      'tiendas en renta',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.launchExperience,
+        speechResponse:
+            'Entrando a las Plazas Famosas 360° con locales interactivos.',
+        targetWingId: 'center',
+        targetDemoId: 'mall_plaza_artz_mx',
+        targetDemoTitle: 'Plaza Artz Pedregal 360°',
+      );
+    }
+
+    // An explicit app launch takes precedence over words shared with looks
+    // ("pon cine" opens the cinema; "cambia el estilo a cine" changes the look).
+    final bestMatch = _findExperience(text);
+    final wantsStyleChange = _matchesAny(text, [
+      'estilo',
+      'look',
+      'tema',
+      'atmosfera',
+      'perfil',
+    ]);
+    final wantsLaunch = _matchesAny(text, [
+      'jugar',
+      'juega',
+      'abrir',
+      'abre',
+      'entrar',
+      'entra',
+      'iniciar',
+      'inicia',
+      'pon',
+      'poner',
+      'cargar',
+      'carga',
+      'quiero ver',
+      'quiero revisar',
+      'quiero ir',
+      'ensename',
+      'muestra',
+      'muestrame',
+      'vamos a',
+      'ir a',
+      've a',
+      'llevame a',
+      'llevame al',
+      'visitar',
+      'visita',
+      'explorar',
+      'explora',
+      'recorrer',
+      'recorre',
+    ]);
+    if (!wantsStyleChange &&
+        bestMatch != null &&
+        (wantsLaunch || bestMatch.directLaunchOnMention)) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.launchExperience,
+        speechResponse: 'Abriendo ${bestMatch.title}.',
+        targetWingId: bestMatch.wingId,
+        targetDemoId: bestMatch.id,
+        targetDemoTitle: bestMatch.title,
+      );
+    }
 
     // 1. Navigation to Home / Plaza Central
-    if (_matchesAny(text, [
-      'home',
-      'inicio',
-      'casa',
-      'plaza',
-      'regresar',
-      'volver',
-      'centro',
-      'sacame de aqui',
-      'principal',
-    ])) {
+    if (text == 'plaza' ||
+        _matchesAny(text, [
+          'home',
+          'inicio',
+          'casa',
+          'plaza central',
+          'regresar',
+          'volver',
+          'centro',
+          'sacame de aqui',
+          'principal',
+        ])) {
       return const ItzliVrGuidance(
         actionType: ItzliActionType.jumpToWing,
         speechResponse: 'Te llevo de regreso a la Plaza Central ✨',
@@ -453,31 +1233,52 @@ class ItzliVrAssistant {
       );
     }
 
-    // An explicit app launch takes precedence over words shared with looks
-    // ("pon cine" opens the cinema; "estilo cine" changes the look).
-    final bestMatch = _findExperience(text);
-    final wantsLaunch = _matchesAny(text, [
-      'jugar',
-      'abrir',
-      'abre',
-      'entrar',
-      'iniciar',
-      'inicia',
-      'pon',
-      'cargar',
-      'quiero ver',
-      'quiero revisar',
-      'ensename',
-      'muestra',
-      'vamos a',
-    ]);
-    if (wantsLaunch && bestMatch != null) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.launchExperience,
-        speechResponse: 'Mostrando la ficha de ${bestMatch.title}.',
-        targetWingId: bestMatch.wingId,
-        targetDemoId: bestMatch.id,
-        targetDemoTitle: bestMatch.title,
+    // 1b. Direct Cardinal Wing Jumps
+    if (_matchesAny(text, [
+      'ala norte',
+      'zona norte',
+      'ala de juegos',
+      'ala estrategia',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.jumpToWing,
+        speechResponse: 'Saltando al Ala Norte de Estrategia y Juegos 🎮',
+        targetWingId: 'north_games',
+      );
+    }
+    if (_matchesAny(text, [
+      'ala este',
+      'zona este',
+      'ala de productividad',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.jumpToWing,
+        speechResponse: 'Saltando al Ala Este de Productividad 📊',
+        targetWingId: 'east_prod',
+      );
+    }
+    if (_matchesAny(text, [
+      'ala oeste',
+      'zona oeste',
+      'ala multimedia',
+      'ala de cine',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.jumpToWing,
+        speechResponse: 'Saltando al Ala Oeste de Multimedia y Cine 🎬',
+        targetWingId: 'west_media',
+      );
+    }
+    if (_matchesAny(text, [
+      'ala sur',
+      'zona sur',
+      'ala laboratorio',
+      'laboratorio sota',
+    ])) {
+      return const ItzliVrGuidance(
+        actionType: ItzliActionType.jumpToWing,
+        speechResponse: 'Saltando al Ala Sur de Laboratorio Sensorial 🔬',
+        targetWingId: 'south_labs',
       );
     }
 
@@ -574,7 +1375,7 @@ class ItzliVrAssistant {
       );
     }
 
-    // 6. Natural Language App Search across the 19 experiences
+    // 6. Natural Language App Search across all indexed experiences
     if (bestMatch != null) {
       return ItzliVrGuidance(
         actionType: ItzliActionType.jumpToWing,
@@ -650,10 +1451,10 @@ class ItzliVrAssistant {
     }
 
     // 8. General conversational fallback
-    return ItzliVrGuidance(
+    return const ItzliVrGuidance(
       actionType: ItzliActionType.conversationalGuidance,
       speechResponse:
-          'Soy Itzli, tu guía en VRlizate. Puedes pedirme "llévame a jugar ajedrez", "abre kanban", "pon cine 360", o "cambia a estilo cyberpunk" ✨',
+          'Soy Itzli, tu guía manos libres. Dime "camina adelante", "gira a la derecha", "abre Plaza Artz", "llévame a Ciudad Solar" o "abre el menú" ✨',
     );
   }
 

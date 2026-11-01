@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -245,6 +246,97 @@ class _VrTriCameraLiveInspectorCardState
                 ),
                 value: service.spatialInspectorHudEnabled,
                 onChanged: service.setSpatialInspectorHudEnabled,
+              ),
+              SwitchListTile.adaptive(
+                key: const ValueKey('spatial_bounding_boxes_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Mostrar cuadros delimitadores 3D (experimental)',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Desactivado por defecto para no estorbar la vista; al activarse aplica suavizado temporal y coloreado por profundidad métrica.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+                value: service.showSpatialBoundingBoxes,
+                onChanged: service.setShowSpatialBoundingBoxes,
+              ),
+              SwitchListTile.adaptive(
+                key: const ValueKey('prefer_ultrawide_camera_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Preferir lente Ultra-Gran Angular / Eyefish (0.5×–0.6×)',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Amplía el cono óptico (~120° FOV) para observar manos y entorno sin girar el cuello.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+                value: service.preferUltraWideCamera,
+                onChanged: service.setPreferUltraWideCamera,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Zoom óptico/espacial del visor · '
+                '${VrOpticalZoomCurve.lensStageLabel(service.currentCameraZoomRatio, minZoom: service.minAvailableCameraZoom)} '
+                '(rango ${service.minAvailableCameraZoom.toStringAsFixed(1)}× – ${service.maxAvailableCameraZoom.toStringAsFixed(0)}×)',
+                style: const TextStyle(
+                  color: Color(0xFF80DEEA),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Slider(
+                key: const ValueKey('visor_camera_zoom_slider'),
+                value: service.normalizedCameraZoom01,
+                min: 0.0,
+                max: 1.0,
+                divisions: 100,
+                label:
+                    '${service.currentCameraZoomRatio.toStringAsFixed(service.currentCameraZoomRatio < 10 ? 1 : 0)}×',
+                onChanged: (v) =>
+                    unawaited(service.setVisorCameraZoomNormalized(v)),
+              ),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final preset in <double>[0.6, 1.0, 3.0, 10.0, 30.0, 100.0])
+                    if (preset >= service.minAvailableCameraZoom - 0.15 &&
+                        preset <= service.maxAvailableCameraZoom + 0.5)
+                      ChoiceChip(
+                        label: Text(
+                          preset < 1.0
+                              ? '${preset.toStringAsFixed(1)}× Eyefish'
+                              : '${preset.toStringAsFixed(0)}×',
+                        ),
+                        selected:
+                            (service.currentCameraZoomRatio - preset).abs() <=
+                            (preset < 2.0 ? 0.15 : preset * 0.12),
+                        onSelected: (_) =>
+                            unawaited(service.setVisorCameraZoomRatio(preset)),
+                      ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                key: const ValueKey('emudra_tri_camera_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'eMudras Cyberneom Tri-Cámara (Visor + Joystick + PC)',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                subtitle: Text(
+                  'Estado: ${service.latestEMudraState.activeMudra.name} · '
+                  'Confianza: ${(service.latestEMudraState.fusedConfidence * 100).round()}% · '
+                  'Cámaras activas: ${service.latestEMudraState.contributingCameras.length}/3 · '
+                  'Profundidad mano: ${service.latestEMudraState.dominantHandDepthMeters.toStringAsFixed(2)} m '
+                  '(${VrDepthColorPalette.labelForDistanceMeters(service.latestEMudraState.dominantHandDepthMeters)})\n'
+                  'Planificador baja latencia: ${service.activeSensingSchedule.reason} '
+                  '(Visor CV: ${service.activeSensingSchedule.runVisorCvStream ? "${service.activeSensingSchedule.visorAnalysisIntervalMs} ms" : "0 Hz reposo"})',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+                value: service.eMudraControlEnabled,
+                onChanged: service.setEMudraControlEnabled,
               ),
               Text(
                 '${VrTranslationConstants.passthroughCurtainTitle} · $mixPct%',

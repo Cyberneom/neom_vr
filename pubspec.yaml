@@ -48,6 +48,7 @@ dependencies:
   vrlizate_assistant: ^1.0.0
   vrlizate_apps: ^1.0.0
   vrlizate_avatar: ^1.0.0
+  vrlizate_cast: ^1.0.0
   vrlizate_joystick: ^1.0.0
 
 dev_dependencies:
