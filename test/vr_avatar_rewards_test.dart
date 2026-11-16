@@ -5,7 +5,6 @@ import 'package:neom_core/domain/model/app_profile.dart';
 import 'package:neom_core/domain/use_cases/user_service.dart';
 import 'package:neom_vr/ecosystem/auth/vr_ecosystem_session.dart';
 import 'package:neom_vr/ecosystem/avatar/vr_avatar_room_presenter.dart';
-import 'package:neom_vr/ecosystem/avatar/vr_local_avatar_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vrlizate_avatar/vrlizate_avatar.dart';
 import 'package:vrlizate_home/vrlizate_home.dart';

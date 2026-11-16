@@ -23,8 +23,10 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
 dependency_overrides:
-  wordsphere:
-    path: ../../../../wordsphere_plugin
+  flutter_webrtc:
+    path: ../../vrlizate_cast/third_party/flutter_webrtc
+  camera_android_camerax:
+    path: ../../vrlizate_joystick/third_party/camera_android_camerax
   sint:
     path: ../../../framework/sint
   neom_core:
@@ -57,6 +59,8 @@ dependency_overrides:
     path: ../../../social/neom_rooms
   neom_ia:
     path: ../../../ai/neom_ia
+  neom_hey:
+    path: ../../../ai/neom_hey
   neom_tts:
     path: ../../../ai/neom_tts
   neom_corpus:
@@ -93,12 +97,18 @@ dependency_overrides:
     path: ../../vrlizate_world
   vrlizate_search:
     path: ../../vrlizate_search
+  vrlizate_ble:
+    path: ../../vrlizate_ble
+  vrlizate_tracking:
+    path: ../../vrlizate_tracking
   vrlizate_joystick:
     path: ../../vrlizate_joystick
   vrlizate_spatial_audio:
     path: ../../vrlizate_spatial_audio
   vrlizate_physics:
     path: ../../vrlizate_physics
+  archive: ^4.5.0
+  lucide_icons_flutter: ^3.1.19
 
 flutter:
   uses-material-design: true

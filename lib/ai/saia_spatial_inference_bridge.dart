@@ -7,11 +7,11 @@ import 'itzli_vr_assistant.dart';
 /// [inferIntentLocally] currently uses keyword rules, not an installed SLM.
 class SaiaSpatialInferenceBridge {
   static const String systemInstruction = '''
-You are Itzli, the intelligent spatial AI assistant of the VRlizate virtual reality ecosystem.
-The user speaks in natural Spanish. Your job is to extract their spatial navigation intent and return a JSON object with:
+You are VR (invoked as "Hey VR"), the intelligent spatial AI assistant of the VRlizate virtual reality ecosystem.
+The user speaks in natural Spanish (often starting with "Hey VR", "Hey ve erre", or "Hey viar"). Your job is to extract their spatial navigation intent and return a JSON object with:
 - "action": One of ["jumpToWing", "launchExperience", "changeLook", "changeResolution", "recenter", "conversationalGuidance"]
 - "targetWingId": One of ["north_games", "east_prod", "west_media", "south_labs", "center"] (optional)
-- "targetDemoId": The demo identifier if the user wants to play/open an experience (e.g. "cosmic_chess", "vr_cinema", "vr_kanban", "holographic_hands", etc.)
+- "targetDemoId": The demo identifier if the user wants to play/open an experience (e.g. "cosmic_chess", "vr_cinema", "vr_free_tv", "vr_kanban", "holographic_hands", etc.)
 - "targetLook": One of ["cyberpunk", "stellar", "cinematic", "night"] (optional)
 - "speechResponse": A warm, helpful, short response in Spanish with emojis.
 ''';
@@ -81,7 +81,10 @@ Return only valid JSON.
 
   /// Rule-based fallback. No model weights or inference runtime are loaded.
   static Future<ItzliVrGuidance?> inferIntentLocally(String userSpeech) async {
-    final lower = userSpeech.toLowerCase().trim();
+    final wake = ItzliVrAssistant.parseWakeWord(userSpeech);
+    final lower = wake.commandText.isNotEmpty
+        ? wake.commandText
+        : userSpeech.toLowerCase().trim();
 
     // Contextual mood/intent mapping handled by the edge inference bridge
     if (lower.contains('cansado') ||
@@ -110,6 +113,7 @@ Return only valid JSON.
 
     if (lower.contains('competir') ||
         lower.contains('reto') ||
+        lower.contains('desafio') ||
         lower.contains('desafío')) {
       return const ItzliVrGuidance(
         actionType: ItzliActionType.jumpToWing,

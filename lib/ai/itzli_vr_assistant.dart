@@ -1,54 +1,49 @@
+import 'package:neom_core/app_config.dart';
+import 'package:neom_core/utils/enums/app_in_use.dart';
+import 'package:neom_hey/neom_hey.dart';
+import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 
 import 'saia_spatial_inference_bridge.dart';
 
-/// Continuous 3D movement command spoken to Itzli (replaces thumbstick/turn).
-enum VrVoiceMotionKind {
-  walkForward,
-  walkBackward,
-  strafeLeft,
-  strafeRight,
-  turnLeft,
-  turnRight,
-  turnAround,
-  stop,
-}
+export 'package:vrlizate_assistant/vrlizate_assistant.dart'
+    show
+        VrVoiceActionType,
+        VrVoiceGuidance,
+        VrVoiceIntentRouter,
+        VrVoiceMotionKind,
+        VrVoiceUiCommand;
 
-/// Hands-free UI & navigation action spoken to Itzli (replaces buttons A/B/L).
-enum VrVoiceUiCommand {
-  openMenu,
-  closeMenu,
-  nextItem,
-  previousItem,
-  confirmSelect,
-  goBack,
-}
+/// Spatial Action determined by VR / neom_hey Assistant (aliased to SDK [VrVoiceActionType]).
+typedef ItzliActionType = VrVoiceActionType;
 
-/// Spatial Action determined by Itzli AI Assistant.
-enum ItzliActionType {
-  jumpToWing,
-  launchExperience,
-  moveInSpace,
-  uiCommand,
-  changeLook,
-  changeResolution,
-  recenter,
-  switchCatalog2D,
-  conversationalGuidance,
-}
-
-/// Structured response emitted by Itzli VR Assistant.
-class ItzliVrGuidance {
+/// Structured response emitted by VR spatial assistant.
+class ItzliVrGuidance implements VrVoiceGuidance {
+  @override
   final ItzliActionType actionType;
+  @override
   final String speechResponse;
+  @override
   final String? targetWingId;
+  @override
   final String? targetDemoId;
+  @override
   final String? targetDemoTitle;
   final VrLook? targetLook;
   final VrQualityPreset? targetPreset;
+  @override
   final VrVoiceMotionKind? motionKind;
+  @override
   final double motionDurationSeconds;
+  final double? distanceMeters;
+  final double? turnDegrees;
+  final String? targetPointQuery;
+  final double? targetX;
+  final double? targetZ;
+  final bool useGazeTarget;
+  @override
   final VrVoiceUiCommand? uiCommand;
+  @override
   final double confidence;
 
   const ItzliVrGuidance({
@@ -61,10 +56,17 @@ class ItzliVrGuidance {
     this.targetPreset,
     this.motionKind,
     this.motionDurationSeconds = 2.2,
+    this.distanceMeters,
+    this.turnDegrees,
+    this.targetPointQuery,
+    this.targetX,
+    this.targetZ,
+    this.useGazeTarget = false,
     this.uiCommand,
     this.confidence = 0.95,
   });
 
+  @override
   String get summaryEs => switch (actionType) {
     ItzliActionType.launchExperience =>
       'Abrir experiencia: ${targetDemoTitle ?? targetDemoId ?? ""}',
@@ -72,6 +74,8 @@ class ItzliVrGuidance {
       'Ir a zona: ${targetWingId ?? "Plaza Central"}',
     ItzliActionType.moveInSpace =>
       'Movimiento 3D: ${motionKind?.name ?? ""} (${motionDurationSeconds.toStringAsFixed(1)}s)',
+    ItzliActionType.goToPoint =>
+      'Ir a punto: ${targetPointQuery ?? (targetX != null && targetZ != null ? "(${targetX!.toStringAsFixed(1)}, ${targetZ!.toStringAsFixed(1)})" : "frente a la mirada")}',
     ItzliActionType.uiCommand =>
       'Acción UI: ${uiCommand?.name ?? ""}',
     ItzliActionType.recenter => 'Recentrar horizonte',
@@ -105,14 +109,70 @@ class _ItzliExperienceMetadata {
   });
 }
 
-/// Deterministic Spanish intent router for VRlizate.
+/// Parsed wake-word result for spoken instructions addressed to the `VR`
+/// spatial assistant (`"Hey VR"`, `"Hey ve erre"`, `"Hey viar"`, `"VR"`).
+class VrWakeWordMatch {
+  final bool addressed;
+  final String matchedWakePhrase;
+  final String commandText;
+
+  const VrWakeWordMatch({
+    required this.addressed,
+    required this.matchedWakePhrase,
+    required this.commandText,
+  });
+
+  /// True when the speaker only uttered the wake phrase (e.g. `"Hey VR"`,
+  /// `"Hey ve erre"`, `"Hey viar"`) without a follow-up instruction yet.
+  bool get isWakeOnly => addressed && commandText.isEmpty;
+}
+
+/// Deterministic Spanish intent router for VRlizate (`Hey VR`).
 ///
-/// Functions as the intelligent virtual guide and spatial copilot of the VRlizate ecosystem:
-/// 1. Understands natural language requests in Spanish across all 19 spatial apps.
+/// Functions as the intelligent virtual guide (`VR`) and spatial copilot of the VRlizate ecosystem:
+/// 1. Understands natural language requests in Spanish across all spatial apps, with or without `"Hey VR"` (`"Hey ve erre"`, `"Hey viar"`, `"VR"`).
 /// 2. Resolves intent to exact wings (Estrategia, Productividad, Cine, SOTA Labs).
 /// 3. Recommends apps based on user mood ("quiero relajarme", "vamos a jugar", "tengo que trabajar").
 /// 4. Adjusts visual looks, HDR bloom, and resolution on the fly.
-class ItzliVrAssistant {
+class ItzliVrAssistant implements VrVoiceIntentRouter {
+  ItzliVrAssistant() {
+    VrVoiceIntentRouter.defaultFactory ??= ItzliVrAssistant.new;
+  }
+  /// Short user-facing assistant identity derived from `VRlizate -> VR`.
+  static const String assistantName = 'VR';
+
+  /// Canonical hands-free wake phrase shown across Visor HUD and Estación Faro.
+  static const String wakeWordHint = 'Hey VR';
+
+  /// Resolves the active [AppInUse] (`AppInUse.v` by default inside VRlizate
+  /// when `AppConfig` has not been overridden yet).
+  static AppInUse get activeVrAppInUse =>
+      AppConfig.instance.appInUse == AppInUse.o
+      ? AppInUse.v
+      : AppConfig.instance.appInUse;
+
+  /// Active voice profile discovered by `neom_hey` for [app].
+  static NeomHeyAppProfile activeProfile([AppInUse? app]) =>
+      NeomHeyProtocol.profileFor(app ?? activeVrAppInUse);
+
+  /// Structured list of supported voice instructions from `neom_hey` for [app].
+  static List<NeomHeyInstructionSpec> supportedCapabilities([AppInUse? app]) =>
+      NeomHeyProtocol.capabilitiesFor(app ?? activeVrAppInUse);
+
+  /// Parses wake-word calls via `NeomHeyProtocol` according to [AppInUse]
+  /// (`AppInUse.v`: `"Hey VR"`, `"Hey ve erre"`, `"Hey viar"`, `"VR"`).
+  static VrWakeWordMatch parseWakeWord(String rawSpeech, {AppInUse? app}) {
+    final heyMatch = NeomHeyProtocol.detectWakeCall(
+      rawSpeech,
+      app: app ?? activeVrAppInUse,
+    );
+    return VrWakeWordMatch(
+      addressed: heyMatch.addressed,
+      matchedWakePhrase: heyMatch.matchedWakePhrase,
+      commandText: heyMatch.commandText,
+    );
+  }
+
   static const List<_ItzliExperienceMetadata> _catalog = [
     // 🎮 Ala Norte: Estrategia & Juegos
     _ItzliExperienceMetadata(
@@ -320,7 +380,6 @@ class ItzliVrAssistant {
       keywords: [
         'ecosistema',
         'neom',
-        'itzli',
         'emxi',
         'apps',
         'red',
@@ -332,6 +391,32 @@ class ItzliVrAssistant {
     ),
 
     // 🎬 Ala Oeste: Multimedia & Artes Visuales
+    _ItzliExperienceMetadata(
+      id: 'vr_free_tv',
+      title: 'TV & Cine Gratis 24/7',
+      wingId: 'west_media',
+      wingName: 'Ala Multimedia & Cine',
+      keywords: [
+        'tv gratis',
+        'television gratis',
+        'programacion gratuita',
+        'pluto tv',
+        'pluto',
+        'tubi',
+        'vix',
+        'canela tv',
+        'filmoteca unam',
+        'cine en linea',
+        'peliculas gratis',
+        'series gratis',
+        'canales en vivo',
+        'streaming gratis',
+        'multiplex',
+      ],
+      categoryDescription:
+          'Multiplex FAST con canales 24/7 en vivo, cine UNAM/clásico, series y portales gratuitos.',
+      directLaunchOnMention: true,
+    ),
     _ItzliExperienceMetadata(
       id: 'vr_cinema',
       title: 'Cine VR 360°',
@@ -710,6 +795,58 @@ class ItzliVrAssistant {
       categoryDescription: 'Ajuste de IPD, distorsión de lentes y horizonte del visor.',
       directLaunchOnMention: true,
     ),
+    _ItzliExperienceMetadata(
+      id: 'vr_store_pass',
+      title: 'Tienda & VR Pass',
+      wingId: 'east_prod',
+      wingName: 'Ala Productividad',
+      keywords: [
+        'tienda',
+        'tienda digital',
+        'vr pass',
+        'vrlizate pass',
+        'membresia',
+        'suscripcion',
+        'comprar juegos',
+        'telemetria',
+      ],
+      categoryDescription:
+          'Showroom 3D de compras digitales, membresía VRlizate Pass, streaming PlayGo y telemetría.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'quantum_planetarium',
+      title: 'Planetario Cuántico 3D',
+      wingId: 'west_media',
+      wingName: 'Ala Multimedia & Cine',
+      keywords: [
+        'planetario',
+        'planetario cuantico',
+        'exoplanetas',
+        'astronomia',
+        'sistema estelar',
+        'observatorio',
+      ],
+      categoryDescription:
+          'Domo astronómico 3D con exoplanetas PBR, anillos armilares y mecánica celeste.',
+      directLaunchOnMention: true,
+    ),
+    _ItzliExperienceMetadata(
+      id: 'neon_synth_arena',
+      title: 'Synthwave Pulse Arena',
+      wingId: 'north_games',
+      wingName: 'Ala Estrategia & Juegos',
+      keywords: [
+        'synthwave',
+        'synthwave arena',
+        'pulse arena',
+        'juego de ritmo',
+        'arena musical',
+      ],
+      categoryDescription:
+          'Coliseo cyber-rítmico 3D con nodos armónicos, partículas y bloom HDR.',
+      directLaunchOnMention: true,
+    ),
 
     // 🌍 Mundos 224×224 m & Expedición Open Neom
     _ItzliExperienceMetadata(
@@ -880,54 +1017,44 @@ class ItzliVrAssistant {
     ),
   ];
 
-  static double _resolveMotionDuration(String text) {
-    if (_matchesAny(text, [
-      'un poco',
-      'poquito',
-      'un paso',
-      'corto',
-      'despacio',
-    ])) {
-      return 1.1;
-    }
-    if (_matchesAny(text, [
-      'mucho',
-      'largo',
-      'bastante',
-      'lejos',
-      'sigue caminando',
-      'continuo',
-      'todo recto',
-    ])) {
-      return 4.0;
-    }
-    return 2.2;
-  }
+  /// Interprets user natural language speech and resolves spatial guidance
+  /// using the canonical `neom_hey` protocol for [app] (`AppInUse.v` by default).
+  @override
+  ItzliVrGuidance interpretRequest(String naturalSpeech, {AppInUse? app}) {
+    final resolvedApp = app ?? activeVrAppInUse;
+    final parsed = NeomHeyProtocol.parseInstruction(
+      naturalSpeech,
+      app: resolvedApp,
+    );
+    final profile = NeomHeyProtocol.profileFor(resolvedApp);
 
-  /// Interprets user natural language speech and resolves spatial guidance.
-  ItzliVrGuidance interpretRequest(String naturalSpeech) {
-    final text = _normalize(naturalSpeech);
-    if (text.isEmpty) {
-      return const ItzliVrGuidance(
-        actionType: ItzliActionType.conversationalGuidance,
-        speechResponse: 'Te escucho. Dime a dónde quieres ir o qué abrir.',
+    if (parsed.wake.isWakeOnly) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.uiCommand,
+        speechResponse: profile.greetingEs,
+        uiCommand: VrVoiceUiCommand.openMenu,
       );
     }
 
-    // 0. Immediate Stop / Freeze Locomotion (safety priority; never match preposition "para")
-    if (text == 'para' ||
-        text == 'parar' ||
-        _matchesAny(text, [
-          'alto',
-          'detente',
-          'frena',
-          'para ya',
-          'deja de caminar',
-          'deja de moverte',
-          'quedate quieto',
-          'quedate ahi',
-          'quieto',
-        ])) {
+    final text = parsed.wake.commandText;
+    if (text.isEmpty) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.conversationalGuidance,
+        speechResponse:
+            'Te escucho. Di «${profile.canonicalWakePhrase}» seguido de a dónde quieres ir o qué abrir.',
+      );
+    }
+
+    // 0a. Capability discovery query ("¿qué funciones puedes realizar?")
+    if (parsed.asksCapabilities) {
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.conversationalGuidance,
+        speechResponse: NeomHeyProtocol.capabilitiesSummaryEs(resolvedApp),
+      );
+    }
+
+    // 0b. Immediate Stop / Freeze Locomotion
+    if (parsed.domain == NeomHeyInstructionDomain.locomotionStop) {
       return const ItzliVrGuidance(
         actionType: ItzliActionType.moveInSpace,
         speechResponse: 'Movimiento detenido.',
@@ -936,7 +1063,7 @@ class ItzliVrAssistant {
       );
     }
 
-    // 0b. Hands-free UI & Menu Commands (no joystick needed)
+    // 0c. Hands-free UI & Menu Commands (no joystick needed)
     if (text == 'menu' ||
         _matchesAny(text, [
           'abre el menu',
@@ -1026,118 +1153,88 @@ class ItzliVrAssistant {
       );
     }
 
-    // 0c. Hands-free 3D Spatial Locomotion (walk, strafe, turn, 180°)
-    final durationSec = _resolveMotionDuration(text);
-    if (_matchesAny(text, [
-      'media vuelta',
-      'date la vuelta',
-      'darse la vuelta',
-      '180 grados',
-      'voltea atras',
-      'mira atras',
-    ])) {
-      return const ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Dando media vuelta.',
-        motionKind: VrVoiceMotionKind.turnAround,
-        motionDurationSeconds: 1.43,
+    // 0d. Specific Point Navigation ("ir a un punto específico": gaze, coords, booth, or room)
+    final explicitOpenCatalogMatch =
+        _matchesAny(text, ['abre ', 'abrir ', 'inicia ', 'iniciar '])
+        ? _findExperience(text)
+        : null;
+    if (parsed.domain == NeomHeyInstructionDomain.spatialPointNavigation &&
+        explicitOpenCatalogMatch == null) {
+      final pointSpeech = parsed.targetX != null && parsed.targetZ != null
+          ? 'Yendo al punto (${parsed.targetX!.toStringAsFixed(1)}, ${parsed.targetZ!.toStringAsFixed(1)}).'
+          : (parsed.targetPointQuery != null
+                ? 'Dirigiéndote hacia ${parsed.targetPointQuery}.'
+                : 'Saltando al punto frente a tu mirada.');
+      return ItzliVrGuidance(
+        actionType: ItzliActionType.goToPoint,
+        speechResponse: pointSpeech,
+        targetPointQuery: parsed.targetPointQuery,
+        targetX: parsed.targetX,
+        targetZ: parsed.targetZ,
+        useGazeTarget: parsed.useGazeTarget,
+        distanceMeters: parsed.distanceMeters,
       );
     }
-    if (_matchesAny(text, [
-      'gira a la izquierda',
-      'girar a la izquierda',
-      'voltea a la izquierda',
-      'mira a la izquierda',
-      'vuelta a la izquierda',
-      'rota a la izquierda',
-      'gira izquierda',
-    ])) {
+
+    // 0e. 3D Turn & Walk Locomotion from NeomHeyProtocol
+    if (parsed.domain == NeomHeyInstructionDomain.locomotionTurn) {
+      final deg = parsed.angleDegrees ?? 90.0;
+      final dur = parsed.durationSeconds ?? 1.05;
+      if (parsed.direction == NeomHeyDirection.around) {
+        return ItzliVrGuidance(
+          actionType: ItzliActionType.moveInSpace,
+          speechResponse: 'Dando media vuelta.',
+          motionKind: VrVoiceMotionKind.turnAround,
+          motionDurationSeconds: dur,
+          turnDegrees: 180,
+        );
+      }
+      final isLeft = parsed.direction == NeomHeyDirection.left;
+      final sideEs = isLeft ? 'la izquierda' : 'la derecha';
       return ItzliVrGuidance(
         actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Girando a la izquierda.',
-        motionKind: VrVoiceMotionKind.turnLeft,
-        motionDurationSeconds: durationSec * 0.55,
+        speechResponse: 'Girando ${deg.round()}° a $sideEs.',
+        motionKind: isLeft
+            ? VrVoiceMotionKind.turnLeft
+            : VrVoiceMotionKind.turnRight,
+        motionDurationSeconds: dur,
+        turnDegrees: deg,
       );
     }
-    if (_matchesAny(text, [
-      'gira a la derecha',
-      'girar a la derecha',
-      'voltea a la derecha',
-      'mira a la derecha',
-      'vuelta a la derecha',
-      'rota a la derecha',
-      'gira derecha',
-    ])) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Girando a la derecha.',
-        motionKind: VrVoiceMotionKind.turnRight,
-        motionDurationSeconds: durationSec * 0.55,
-      );
-    }
-    if (_matchesAny(text, [
-      'paso a la izquierda',
-      'muevete a la izquierda',
-      'desplazate a la izquierda',
-      'camina a la izquierda',
-      'a la izquierda',
-    ])) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Desplazándote a la izquierda.',
-        motionKind: VrVoiceMotionKind.strafeLeft,
-        motionDurationSeconds: durationSec,
-      );
-    }
-    if (_matchesAny(text, [
-      'paso a la derecha',
-      'muevete a la derecha',
-      'desplazate a la derecha',
-      'camina a la derecha',
-      'a la derecha',
-    ])) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Desplazándote a la derecha.',
-        motionKind: VrVoiceMotionKind.strafeRight,
-        motionDurationSeconds: durationSec,
-      );
-    }
-    if (_matchesAny(text, [
-      'retrocede',
-      'retroceder',
-      'hacia atras',
-      'camina atras',
-      'caminar atras',
-      'paso atras',
-      'echate para atras',
-      'alejate',
-    ])) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Retrocediendo con suavidad.',
-        motionKind: VrVoiceMotionKind.walkBackward,
-        motionDurationSeconds: durationSec,
-      );
-    }
-    if (_matchesAny(text, [
-      'camina',
-      'caminar',
-      'avanza',
-      'avanzar',
-      'hacia adelante',
-      'adelante',
-      'paso adelante',
-      'acercate',
-      'sigue recto',
-      'camina recto',
-    ])) {
-      return ItzliVrGuidance(
-        actionType: ItzliActionType.moveInSpace,
-        speechResponse: 'Avanzando hacia adelante.',
-        motionKind: VrVoiceMotionKind.walkForward,
-        motionDurationSeconds: durationSec,
-      );
+
+    if (parsed.domain == NeomHeyInstructionDomain.locomotionWalk) {
+      final dur = parsed.durationSeconds ?? 2.2;
+      final dist = parsed.distanceMeters;
+      return switch (parsed.direction) {
+        NeomHeyDirection.backward => ItzliVrGuidance(
+          actionType: ItzliActionType.moveInSpace,
+          speechResponse: 'Retrocediendo con suavidad.',
+          motionKind: VrVoiceMotionKind.walkBackward,
+          motionDurationSeconds: dur,
+          distanceMeters: dist,
+        ),
+        NeomHeyDirection.left => ItzliVrGuidance(
+          actionType: ItzliActionType.moveInSpace,
+          speechResponse: 'Desplazándote a la izquierda.',
+          motionKind: VrVoiceMotionKind.strafeLeft,
+          motionDurationSeconds: dur,
+          distanceMeters: dist,
+        ),
+        NeomHeyDirection.right => ItzliVrGuidance(
+          actionType: ItzliActionType.moveInSpace,
+          speechResponse: 'Desplazándote a la derecha.',
+          motionKind: VrVoiceMotionKind.strafeRight,
+          motionDurationSeconds: dur,
+          distanceMeters: dist,
+        ),
+        _ => ItzliVrGuidance(
+          actionType: ItzliActionType.moveInSpace,
+          speechResponse: 'Avanzando hacia adelante.',
+          motionKind: VrVoiceMotionKind.walkForward,
+          motionDurationSeconds: dur,
+          distanceMeters: dist,
+        ),
+      };
     }
 
     // Generic Famous Malls / Plazas 360° request before generic "plaza" home check
@@ -1454,7 +1551,7 @@ class ItzliVrAssistant {
     return const ItzliVrGuidance(
       actionType: ItzliActionType.conversationalGuidance,
       speechResponse:
-          'Soy Itzli, tu guía manos libres. Dime "camina adelante", "gira a la derecha", "abre Plaza Artz", "llévame a Ciudad Solar" o "abre el menú" ✨',
+          'Soy VR, tu guía manos libres de VRlizate. Di «Hey VR» y pide "camina adelante", "gira a la derecha", "abre TV gratis", "abre Plaza Artz" o "abre el menú" ✨',
     );
   }
 

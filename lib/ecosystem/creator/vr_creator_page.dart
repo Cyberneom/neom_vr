@@ -5,8 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:vrlizate_apps/vrlizate_apps.dart';
 
-import 'vr_creator_service.dart';
-
 /// Validates locally; only an authorized server can accept and publish a work.
 class VrCreatorPage extends StatefulWidget {
   const VrCreatorPage({super.key, required this.service});
@@ -21,6 +19,39 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
   String? _message;
   bool _busy = false;
   bool _received = false;
+
+  String _kindLabel(VrlzPackage package) => switch (package.kind) {
+    VrlzPackageKind.scene =>
+      package.sceneBundle?.manifest.isV2 == true
+          ? 'Escena portable v2 (PBR / KTX2 / Animación)'
+          : 'Escena portable v1',
+    VrlzPackageKind.worlds =>
+      package.worldBundle?.manifest.isV2 == true
+          ? 'Experiencia de mundos v2 (${package.worldBundle!.manifest.worlds.length} mundo(s))'
+          : 'Experiencia de mundos v1 (${package.worldBundle!.manifest.worlds.length} mundo(s))',
+    VrlzPackageKind.retro => 'Nivel retro 2.5D portable',
+    VrlzPackageKind.builtin => 'Referencia a un demo incluido en la plataforma',
+    VrlzPackageKind.nes => 'Cartucho NES local (no publicable)',
+    VrlzPackageKind.webgame => 'Índice WebGame externo (no publicable)',
+  };
+
+  String _budgetSummary(VrCreatorPackage selected) {
+    final b = selected.budget;
+    final archiveKib = (b.archiveBytes / 1024).toStringAsFixed(1);
+    final maxArchiveMib = (b.maxArchiveBytes / (1024 * 1024)).toStringAsFixed(
+      b.maxArchiveBytes < 1024 * 1024 ? 2 : 0,
+    );
+    if (!selected.package.isCreatorSubmittable) {
+      return '$archiveKib KiB · Sin presupuesto de subida';
+    }
+    final vramMib = (b.estimatedVramBytes / (1024 * 1024)).toStringAsFixed(2);
+    final maxVramMib = (b.maxEstimatedVramBytes / (1024 * 1024))
+        .toStringAsFixed(0);
+    if (b.maxTrianglesLimit > 0) {
+      return '$archiveKib KiB / $maxArchiveMib MiB · VRAM est. $vramMib / $maxVramMib MiB · ${b.maxTriangles} / ${b.maxTrianglesLimit} triángulos';
+    }
+    return '$archiveKib KiB / $maxArchiveMib MiB · VRAM est. $vramMib / $maxVramMib MiB';
+  }
 
   Future<void> _choose() async {
     if (_busy) return;
@@ -62,7 +93,7 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
       if (mounted) {
         setState(
           () => _message =
-              'No se pudo validar este .vrlz. Revisa el formato, el tamaño y la compatibilidad con el SDK.',
+              'No se pudo validar este paquete (.vrlz / .vrlw). Revisa el formato, el presupuesto de memoria/triángulos y la compatibilidad con el SDK.',
         );
       }
     } finally {
@@ -106,6 +137,12 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
+    final canSubmit =
+        widget.service.configured &&
+        (selected?.package.isCreatorSubmittable ?? false) &&
+        (selected?.budget.withinLimits ?? false) &&
+        !_busy &&
+        !_received;
     return Scaffold(
       appBar: AppBar(title: const Text('Estudio de creadores')),
       body: Center(
@@ -121,18 +158,18 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Comparte un mundo propio',
+                'Comparte un mundo o escena propia',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 12),
               const Text(
-                'Selecciona una experiencia .vrlz compatible con VRlizate. Revisaremos su contenido antes de que aparezca en el catálogo.',
+                'Selecciona un paquete .vrlz o mundo .vrlw compatible con VRlizate (escenas v1/v2, mundos portables o niveles retro dentro del presupuesto de archivo, VRAM y geometría). Revisaremos su contenido antes de que aparezca en el catálogo.',
               ),
               const SizedBox(height: 20),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _choose,
                 icon: const Icon(Icons.file_open_outlined),
-                label: const Text('Seleccionar .vrlz'),
+                label: const Text('Seleccionar .vrlz / .vrlw'),
               ),
               if (selected != null) ...[
                 const SizedBox(height: 20),
@@ -146,21 +183,15 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
                           selected.package.title,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        if (selected.package.kind == VrlzPackageKind.builtin)
+                        if (!selected.package.isCreatorSubmittable)
                           const Text(
-                            'Esta referencia abre un demo de la plataforma. Para publicar una obra propia, exporta una escena portable desde el SDK.',
+                            'Este paquete no contiene una obra portable propia dentro del presupuesto de subida. Exporta una escena, mundo .vrlw/.vrlz o nivel retro desde el SDK.',
                           ),
                         if (selected.package.description.isNotEmpty)
                           Text(selected.package.description),
                         const SizedBox(height: 12),
-                        Text(
-                          '${(selected.bytes.length / 1024).toStringAsFixed(1)} KiB · Archivo validado',
-                        ),
-                        Text(
-                          selected.package.kind == VrlzPackageKind.scene
-                              ? 'Escena portable'
-                              : 'Referencia a un demo incluido en la plataforma',
-                        ),
+                        Text(_budgetSummary(selected)),
+                        Text(_kindLabel(selected.package)),
                       ],
                     ),
                   ),
@@ -168,23 +199,17 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
               ],
               const SizedBox(height: 16),
               const Text(
-                'Distribución inicial: gratuita. Las ventas y los pagos a creadores todavía no están habilitados.',
+                'Distribución inicial: paquetes con presupuesto verificado. Las ventas directas requieren habilitación comercial del backend.',
               ),
               if (!widget.service.configured) ...[
                 const SizedBox(height: 12),
                 const Text(
-                  'Puedes comprobar tu archivo. La recepción de nuevas experiencias aún no está disponible.',
+                  'Puedes comprobar tu archivo y su presupuesto localmente. La recepción en servidor aún no está configurada.',
                 ),
               ],
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed:
-                    widget.service.configured &&
-                        selected?.package.kind == VrlzPackageKind.scene &&
-                        !_busy &&
-                        !_received
-                    ? _submit
-                    : null,
+                onPressed: canSubmit ? _submit : null,
                 icon: const Icon(Icons.cloud_upload_outlined),
                 label: const Text('Enviar para revisión'),
               ),

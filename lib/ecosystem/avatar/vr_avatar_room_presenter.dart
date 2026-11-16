@@ -5,7 +5,6 @@ import 'package:vrlizate_avatar/vrlizate_avatar.dart';
 import 'package:vrlizate_home/vrlizate_home.dart';
 
 import '../auth/vr_ecosystem_session.dart';
-import 'vr_local_avatar_store.dart';
 
 /// Adapts the SDK avatar editor to Home's gaze/gamepad action panels.
 /// The SDK owns the model/preview; the application owns identity and storage.

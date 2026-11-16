@@ -8,7 +8,6 @@ import 'package:vrlizate_avatar/vrlizate_avatar.dart';
 
 import 'auth/vr_ecosystem_session.dart';
 import 'avatar/vr_avatar_room_presenter.dart';
-import 'avatar/vr_local_avatar_store.dart';
 import 'content/vr_content_configuration.dart';
 import 'content/vr_content_playback.dart';
 import 'content/vr_content_provider.dart';

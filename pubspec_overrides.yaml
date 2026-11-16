@@ -1,6 +1,6 @@
 dependency_overrides:
-  wordsphere:
-    path: ../../../wordsphere_plugin
+  camera_android_camerax:
+    path: ../vrlizate_joystick/third_party/camera_android_camerax
   sint:
     path: ../../framework/sint
   neom_core:
@@ -33,6 +33,8 @@ dependency_overrides:
     path: ../../social/neom_rooms
   neom_ia:
     path: ../../ai/neom_ia
+  neom_hey:
+    path: ../../ai/neom_hey
   neom_tts:
     path: ../../ai/neom_tts
   neom_corpus:
@@ -71,11 +73,15 @@ dependency_overrides:
     path: ../vrlizate_world
   vrlizate_search:
     path: ../vrlizate_search
+  vrlizate_ble:
+    path: ../vrlizate_ble
+  vrlizate_tracking:
+    path: ../vrlizate_tracking
   vrlizate_joystick:
     path: ../vrlizate_joystick
   vrlizate_spatial_audio:
     path: ../vrlizate_spatial_audio
   vrlizate_physics:
     path: ../vrlizate_physics
-  archive: 4.0.9
-  image: 4.7.2
+  archive: ^4.5.0
+  lucide_icons_flutter: ^3.1.19

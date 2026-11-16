@@ -2,7 +2,7 @@ name: neom_vr
 description: Neom VR extension module for Open Neom. Provides immersive 360-degree virtual reality viewer pages, controllers, spatial UI engines, Open Neom VR ecosystem, AI assistant, and BLE controller transport for Flutter.
 version: 2.0.0
 homepage: https://github.com/Cyberneom/neom_vr
-# publish_to: 'none'
+publish_to: 'none'
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
@@ -22,6 +22,7 @@ dependencies:
   neom_media_player: ^1.4.0
   neom_books: ^1.0.0
   neom_ia: ^1.1.0
+  neom_hey: ^1.0.0
   neom_tts: ^1.0.0
   neom_ble: ^0.1.0
 
@@ -48,8 +49,11 @@ dependencies:
   vrlizate_assistant: ^1.0.0
   vrlizate_apps: ^1.0.0
   vrlizate_avatar: ^1.0.0
+  vrlizate_ble: ^1.0.0
   vrlizate_cast: ^1.0.0
   vrlizate_joystick: ^1.0.0
+  vrlizate_search: ^1.0.0
+  vrlizate_tracking: ^1.0.0
 
 dev_dependencies:
   flutter_test:

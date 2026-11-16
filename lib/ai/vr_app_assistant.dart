@@ -17,10 +17,15 @@ class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
     : controller = VrAssistantController(
         provider: provider ?? VrItzliCloudProvider(),
       ),
-      voice = voice ?? VrAssistantVoice() {
+      voice = voice ?? _createDefaultVoice() {
     controller.addListener(_changed);
     this.voice.addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  static VrAssistantVoice _createDefaultVoice() {
+    registerNeomVrSpeechDefaults();
+    return VrAssistantVoice();
   }
 
   final VrAssistantController controller;
@@ -47,12 +52,12 @@ class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
           ? '${voice.status}\n${voice.transcript}'
           : busy
           ? (lastImageBytes > 0
-                ? 'Itzli está analizando tu vista…'
-                : 'Itzli está preparando una respuesta…')
+                ? 'VR está analizando tu vista…'
+                : 'VR está preparando una respuesta…')
           : (voice.status.isNotEmpty
                 ? voice.status
-                : 'Habla con Itzli, pide ayuda o consulta lo que estás viendo. '
-                      'Las consultas de IA usan el servicio de Itzli por Internet. '
+                : 'Di «Hey VR», pide ayuda o consulta lo que estás viendo. '
+                      'Las consultas avanzadas usan el asistente VR en línea. '
                       '«Qué estoy viendo» envía una captura de esta experiencia.'));
 
   void setExperiences(Map<String, String> experiences) {

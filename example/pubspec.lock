@@ -58,13 +58,13 @@ packages:
     source: hosted
     version: "1.0.4"
   archive:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: archive
-      sha256: "6c5bcd986e06b94e3c40244af471750840a3d2341d1f9763a1100a14add517b4"
+      sha256: de5ac590b8155e4e676088d714bd41ea620449a6adc0f7950c5073874b287ddb
       url: "https://pub.dev"
     source: hosted
-    version: "4.3.0"
+    version: "4.6.0"
   args:
     dependency: transitive
     description:
@@ -178,13 +178,12 @@ packages:
     source: hosted
     version: "0.12.1"
   camera_android_camerax:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: camera_android_camerax
-      sha256: "47645ffd20c597cb0edab4de20f3c89447b7eca90425ee13683b746275b18e2b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.7.5+1"
+      path: "../../vrlizate_joystick/third_party/camera_android_camerax"
+      relative: true
+    source: path
+    version: "0.7.4+8"
   camera_avfoundation:
     dependency: transitive
     description:
@@ -923,13 +922,12 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_webrtc:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: flutter_webrtc
-      sha256: ebf5ceef2897caae425ed65a38b2961c29d9d9a626159418ed460e1a65038c00
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.6.2+hotfix.4"
+      path: "../../vrlizate_cast/third_party/flutter_webrtc"
+      relative: true
+    source: path
+    version: "1.6.2+hotfix.3"
   font_awesome_flutter:
     dependency: transitive
     description:
@@ -1254,10 +1252,10 @@ packages:
     dependency: transitive
     description:
       name: image
-      sha256: d701df3ef4761a22854c69b9661c9d8f25b264b3982985f25944247ce644761f
+      sha256: "0be525eb917b032c7c9c980597c508a255814a858bd8d9abfc9c57e04f3ebf89"
       url: "https://pub.dev"
     source: hosted
-    version: "4.11.0"
+    version: "4.10.2"
   in_app_purchase:
     dependency: transitive
     description:
@@ -1419,13 +1417,13 @@ packages:
     source: hosted
     version: "1.3.0"
   lucide_icons_flutter:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: lucide_icons_flutter
-      sha256: "7c5dc01a32a9905ae34e2d84224e92d6d0c42acf8926df9e01c35a1446bf1b69"
+      sha256: d350446fb7a7ab3ef8550e3cb5aab72f4e9da54d54111244ab09489bb8a2a1ff
       url: "https://pub.dev"
     source: hosted
-    version: "3.1.14+2"
+    version: "3.1.25"
   matcher:
     dependency: transitive
     description:
@@ -1552,6 +1550,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.2"
+  neom_hey:
+    dependency: "direct overridden"
+    description:
+      path: "../../../ai/neom_hey"
+      relative: true
+    source: path
+    version: "1.0.0"
   neom_ia:
     dependency: "direct overridden"
     description:
@@ -2611,6 +2616,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  vrlizate_ble:
+    dependency: "direct overridden"
+    description:
+      path: "../../vrlizate_ble"
+      relative: true
+    source: path
+    version: "1.0.0"
   vrlizate_cast:
     dependency: "direct overridden"
     description:
@@ -2664,6 +2676,13 @@ packages:
     dependency: "direct overridden"
     description:
       path: "../../vrlizate_spatial_audio"
+      relative: true
+    source: path
+    version: "1.0.0"
+  vrlizate_tracking:
+    dependency: "direct overridden"
+    description:
+      path: "../../vrlizate_tracking"
       relative: true
     source: path
     version: "1.0.0"
@@ -2753,13 +2772,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.15.0"
-  wordsphere:
-    dependency: "direct overridden"
-    description:
-      path: "../../../../wordsphere_plugin"
-      relative: true
-    source: path
-    version: "1.0.0"
   xdg_directories:
     dependency: transitive
     description:

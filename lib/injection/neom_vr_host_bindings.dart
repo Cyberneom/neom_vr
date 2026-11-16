@@ -1,6 +1,10 @@
 import 'package:sint/sint.dart';
+import 'package:vrlizate_ble/vrlizate_ble.dart';
 
+import '../ai/itzli_vr_assistant.dart';
 import '../ai/vr_app_assistant.dart';
+import '../ai/vr_assistant_voice.dart';
+import '../ble/neom_ble_gatt_peripheral_adapter.dart';
 import '../ecosystem/auth/vr_ecosystem_session.dart';
 
 /// SINT 2.0.0 host bindings for registering [VrEcosystemSession] and
@@ -11,7 +15,18 @@ class NeomVrHostBindings extends BindingsInterface<void> {
     VrAppAssistant? assistant,
   }) : ecosystemSession =
            ecosystemSession ?? VrEcosystemSession(backendReady: false),
-       assistant = assistant ?? VrAppAssistant();
+       assistant = assistant ?? VrAppAssistant() {
+    registerSdkIntegrations();
+  }
+
+  /// Registers Open Neom default factories (`ItzliVrAssistant`, `neom_ble`,
+  /// `speech_to_text` + `neom_tts`) into VRlizate SDK extension hooks.
+  static void registerSdkIntegrations() {
+    VrVoiceIntentRouter.defaultFactory = ItzliVrAssistant.new;
+    VrBleGattPeripheralAdapter.defaultFactory ??=
+        NeomBleGattPeripheralAdapter.new;
+    registerNeomVrSpeechDefaults();
+  }
 
   final VrEcosystemSession ecosystemSession;
   final VrAppAssistant assistant;
