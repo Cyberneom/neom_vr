@@ -21,14 +21,9 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
   bool _received = false;
 
   String _kindLabel(VrlzPackage package) => switch (package.kind) {
-    VrlzPackageKind.scene =>
-      package.sceneBundle?.manifest.isV2 == true
-          ? 'Escena portable v2 (PBR / KTX2 / Animación)'
-          : 'Escena portable v1',
+    VrlzPackageKind.scene => 'Escena portable v1',
     VrlzPackageKind.worlds =>
-      package.worldBundle?.manifest.isV2 == true
-          ? 'Experiencia de mundos v2 (${package.worldBundle!.manifest.worlds.length} mundo(s))'
-          : 'Experiencia de mundos v1 (${package.worldBundle!.manifest.worlds.length} mundo(s))',
+      'Experiencia de mundos v1 (${package.worldBundle?.manifest.worlds.length ?? 0} mundo(s))',
     VrlzPackageKind.retro => 'Nivel retro 2.5D portable',
     VrlzPackageKind.builtin => 'Referencia a un demo incluido en la plataforma',
     VrlzPackageKind.nes => 'Cartucho NES local (no publicable)',
