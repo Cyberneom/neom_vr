@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sint/sint.dart';
@@ -114,13 +113,6 @@ class NeomSpatial360Controller extends SintController {
   void onClose() {
     _animationTimer?.cancel();
     headTracker.dispose();
-
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
     super.onClose();
   }
 
