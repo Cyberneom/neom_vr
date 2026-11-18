@@ -1,6 +1,7 @@
 import 'package:sint/sint.dart';
 import 'package:vrlizate_ble/vrlizate_ble.dart';
 import 'package:vrlizate_joystick/vrlizate_joystick.dart';
+import 'package:vrlizate_scene/vrlizate_scene.dart';
 import 'package:vrlizate_tracking/vrlizate_tracking.dart';
 
 import '../ai/itzli_vr_assistant.dart';
@@ -31,8 +32,20 @@ class NeomVrHostBindings extends BindingsInterface<void> {
         NeomBleGattPeripheralAdapter.new;
     VrDesktopBeaconStation.defaultAiInferenceHandler ??=
         VrEmbeddedSaiaRuntime.instance.handleDesktopFaroRequest;
+    VrDesktopBeaconStation.defaultAiStatusProvider ??=
+        VrEmbeddedSaiaRuntime.instance.buildStatusSnapshot;
     VrJoystickAiCoProcessor.defaultCoProcessor ??=
         VrEmbeddedSaiaRuntime.instance.buildJoystickCoProcessor();
+    StereoSceneView.onGlobalQualityStepDown ??= (nextPreset) {
+      VrEmbeddedSaiaRuntime.instance.notifyThermalStepDown(
+        steppedDownToLow: nextPreset.tier == VrQualityTier.low,
+      );
+    };
+    VrThermalGovernor.onGlobalThermalEvent ??= (event) {
+      VrEmbeddedSaiaRuntime.instance.notifyThermalStepDown(
+        steppedDownToLow: event.newPreset.tier == VrQualityTier.low,
+      );
+    };
     registerNeomVrSpeechDefaults();
   }
 
