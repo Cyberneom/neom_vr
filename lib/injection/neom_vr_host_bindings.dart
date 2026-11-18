@@ -1,9 +1,12 @@
 import 'package:sint/sint.dart';
 import 'package:vrlizate_ble/vrlizate_ble.dart';
+import 'package:vrlizate_joystick/vrlizate_joystick.dart';
+import 'package:vrlizate_tracking/vrlizate_tracking.dart';
 
 import '../ai/itzli_vr_assistant.dart';
 import '../ai/vr_app_assistant.dart';
 import '../ai/vr_assistant_voice.dart';
+import '../ai/vr_embedded_saia_provider.dart';
 import '../ble/neom_ble_gatt_peripheral_adapter.dart';
 import '../ecosystem/auth/vr_ecosystem_session.dart';
 
@@ -20,11 +23,16 @@ class NeomVrHostBindings extends BindingsInterface<void> {
   }
 
   /// Registers Open Neom default factories (`ItzliVrAssistant`, `neom_ble`,
-  /// `speech_to_text` + `neom_tts`) into VRlizate SDK extension hooks.
+  /// `speech_to_text` + `neom_tts`, and `1D`/`2D`/`3D` `VrEmbeddedSaiaRuntime`
+  /// co-processors) into VRlizate SDK extension hooks.
   static void registerSdkIntegrations() {
     VrVoiceIntentRouter.defaultFactory = ItzliVrAssistant.new;
     VrBleGattPeripheralAdapter.defaultFactory ??=
         NeomBleGattPeripheralAdapter.new;
+    VrDesktopBeaconStation.defaultAiInferenceHandler ??=
+        VrEmbeddedSaiaRuntime.instance.handleDesktopFaroRequest;
+    VrJoystickAiCoProcessor.defaultCoProcessor ??=
+        VrEmbeddedSaiaRuntime.instance.buildJoystickCoProcessor();
     registerNeomVrSpeechDefaults();
   }
 

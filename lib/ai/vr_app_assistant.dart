@@ -4,20 +4,29 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 import 'package:vrlizate_home/vrlizate_home_spatial.dart' as home;
+import 'package:vrlizate_joystick/vrlizate_joystick.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
+import 'package:vrlizate_tracking/vrlizate_tracking.dart';
 
 import 'itzli_vr_assistant.dart';
 import 'vr_assistant_voice.dart';
-import 'vr_itzli_cloud_provider.dart';
+import 'vr_embedded_saia_provider.dart';
 
 /// App-owned coordination: the SDK owns request/capture bounds; Open Neom
-/// supplies inference and voice; Home only presents the result.
+/// supplies embedded SAIA inference (`1D`/`2D`/`3D`) and voice; Home only presents the result.
 class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
   VrAppAssistant({VrAssistantProvider? provider, VrAssistantVoice? voice})
-    : controller = VrAssistantController(
-        provider: provider ?? VrItzliCloudProvider(),
-      ),
-      voice = voice ?? _createDefaultVoice() {
+    : voice = voice ?? _createDefaultVoice() {
+    final resolvedProvider =
+        provider ??
+        VrEmbeddedSaiaProvider(
+          beaconClientResolver: () => _beaconClient,
+          remoteControllerResolver: () => _remoteController,
+        );
+    if (resolvedProvider is VrEmbeddedSaiaProvider) {
+      _embeddedSaia = resolvedProvider;
+    }
+    controller = VrAssistantController(provider: resolvedProvider);
     controller.addListener(_changed);
     this.voice.addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
@@ -28,8 +37,11 @@ class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
     return VrAssistantVoice();
   }
 
-  final VrAssistantController controller;
+  late final VrAssistantController controller;
   final VrAssistantVoice voice;
+  VrEmbeddedSaiaProvider? _embeddedSaia;
+  VrDesktopBeaconClient? _beaconClient;
+  VrRemoteControllerService? _remoteController;
   final capture = VrAssistantCaptureController();
   final _guidance = StreamController<home.VrHomeGuidance>.broadcast();
   final _rules = ItzliVrAssistant();
@@ -43,6 +55,19 @@ class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
   int lastLatencyMs = 0;
   String? lastAction;
 
+  /// Binds optional Estación Faro (`3D`) and Companion Joystick (`2D`) links
+  /// so spatial assistant queries automatically offload when available.
+  void bindSpatialTopology({
+    VrDesktopBeaconClient? beaconClient,
+    VrRemoteControllerService? remoteController,
+  }) {
+    if (beaconClient != null) _beaconClient = beaconClient;
+    if (remoteController != null) _remoteController = remoteController;
+  }
+
+  VrEmbeddedAiTopology get activeTopology =>
+      _embeddedSaia?.activeTopology ?? VrEmbeddedAiTopology.oneDeviceSmartphone;
+
   Stream<home.VrHomeGuidance> get guidance => _guidance.stream;
   bool get busy => _preparing || controller.busy;
   bool get listening => voice.listening;
@@ -52,13 +77,13 @@ class VrAppAssistant extends ChangeNotifier with WidgetsBindingObserver {
           ? '${voice.status}\n${voice.transcript}'
           : busy
           ? (lastImageBytes > 0
-                ? 'VR está analizando tu vista…'
-                : 'VR está preparando una respuesta…')
+                ? 'SAIA está analizando tu vista…'
+                : 'SAIA está preparando una respuesta…')
           : (voice.status.isNotEmpty
                 ? voice.status
                 : 'Di «Hey VR», pide ayuda o consulta lo que estás viendo. '
-                      'Las consultas avanzadas usan el asistente VR en línea. '
-                      '«Qué estoy viendo» envía una captura de esta experiencia.'));
+                      'La IA corre de forma embebida con SAIA (${activeTopology.badgeEs}). '
+                      '«Qué estoy viendo» analiza una captura de esta experiencia.'));
 
   void setExperiences(Map<String, String> experiences) {
     _experiences = Map.unmodifiable(experiences);

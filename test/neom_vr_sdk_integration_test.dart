@@ -68,5 +68,8 @@ void main() {
     await host.start();
     expect(neomServer.published, isTrue);
     expect(neomServer.advertising, isTrue);
+    expect(VrDesktopBeaconStation.defaultAiInferenceHandler, isNotNull);
+    expect(station.hasAiInferenceHandler, isTrue);
+    expect(VrJoystickAiCoProcessor.defaultCoProcessor, isNotNull);
   });
 }

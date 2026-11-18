@@ -57,23 +57,20 @@ class _VrCreatorPageState extends State<VrCreatorPage> {
       _selected = null;
     });
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['vrlz', 'vrlw'],
-        allowMultiple: false,
-        withData: false,
-        withReadStream: true,
       );
-      if (result == null || !mounted) return;
-      final file = result.files.single;
+      if (file == null || !mounted) return;
       final ext = file.extension?.toLowerCase();
+      final knownSize = file.lengthSync() ?? await file.length();
       if ((ext != 'vrlz' && ext != 'vrlw') ||
-          file.size > VrlzPackage.maxBytes) {
+          (knownSize != null && knownSize > VrlzPackage.maxBytes)) {
         throw const FormatException(
           'Elige un archivo .vrlz o .vrlw de hasta 32 MiB.',
         );
       }
-      final stream = file.readStream ?? file.xFile.openRead();
+      final stream = file.readAsByteStream();
       final builder = BytesBuilder(copy: false);
       await for (final chunk in stream.timeout(const Duration(seconds: 30))) {
         if (!mounted) return;
