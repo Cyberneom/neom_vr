@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:neom_commons/utils/constants/app_page_id_constants.dart';
 import 'package:neom_commons/utils/vr_utilities.dart';
 import 'package:sint/sint.dart';
@@ -20,7 +22,12 @@ class NeomVR360StereoController extends SintController {
 
   // Estado de UI
   final RxBool isRunning = true.obs;
-  final RxBool useGyroscope = true.obs;
+  static bool get _defaultUseGyroscope =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  late final RxBool useGyroscope = _defaultUseGyroscope.obs;
   final RxBool showRings = true.obs;
   final RxBool showConstellations = true.obs;
   final RxBool showNebula = true.obs;
@@ -32,20 +39,31 @@ class NeomVR360StereoController extends SintController {
   final RxDouble eyeSeparation = 0.065.obs;
   final RxDouble gyroSensitivity = 0.04.obs;
 
+  static NeomVrPainterEngine? _resolvePainterEngine() {
+    try {
+      final args = Sint.arguments;
+      if (args is NeomVrPainterEngine) return args;
+    } catch (_) {
+      // SintRoot may not be mounted when embedded in standard MaterialApp or headless tests.
+    }
+    if (Sint.isRegistered<NeomVrPainterEngine>()) {
+      return Sint.find<NeomVrPainterEngine>();
+    }
+    return null;
+  }
+
   @override
   void onInit() {
     super.onInit();
 
-    VrUtilities.enableVrMode();
+    try {
+      VrUtilities.enableVrMode();
+    } catch (_) {}
 
     vrEngine = NeomVR360Engine();
 
     // Recibir el painter engine del generador
-    if (Sint.arguments != null && Sint.arguments is NeomVrPainterEngine) {
-      vrPainterEngine = Sint.arguments;
-    } else if (Sint.isRegistered<NeomVrPainterEngine>()) {
-      vrPainterEngine = Sint.find<NeomVrPainterEngine>();
-    }
+    vrPainterEngine ??= _resolvePainterEngine();
 
     // Inicializar universo OPTIMIZADO para VR
     vrEngine.particleCount = 120;
@@ -60,10 +78,21 @@ class NeomVR360StereoController extends SintController {
     );
 
     if (useGyroscope.value) {
-      headTracker.start();
+      _startHeadTrackerSafely();
     }
 
     _startAnimation();
+  }
+
+  void _startHeadTrackerSafely() {
+    runZonedGuarded(
+      () {
+        headTracker.start();
+      },
+      (Object error, StackTrace stack) {
+        useGyroscope.value = false;
+      },
+    );
   }
 
   void _startAnimation() {
@@ -108,10 +137,32 @@ class NeomVR360StereoController extends SintController {
     });
   }
 
+  bool _didClose = false;
+
   @override
   void onClose() {
+    if (_didClose) return;
+    _didClose = true;
     _animationTimer?.cancel();
-    headTracker.dispose();
+    _animationTimer = null;
+    try {
+      headTracker.dispose();
+    } catch (_) {}
+    try {
+      vrEngine.dispose();
+    } catch (_) {}
+
+    isRunning.close();
+    useGyroscope.close();
+    showRings.close();
+    showConstellations.close();
+    showNebula.close();
+    colorMode.close();
+    frequency.close();
+    wavelength.close();
+    eyeSeparation.close();
+    gyroSensitivity.close();
+
     super.onClose();
   }
 
@@ -125,7 +176,7 @@ class NeomVR360StereoController extends SintController {
   void toggleGyroscope() {
     useGyroscope.toggle();
     if (useGyroscope.value) {
-      headTracker.start();
+      _startHeadTrackerSafely();
     } else {
       headTracker.stop();
     }
@@ -154,28 +205,35 @@ class NeomVR360StereoController extends SintController {
   }
 
   void setFrequency(double value) {
+    if (!value.isFinite) return;
     frequency.value = value.clamp(20.0, 2000.0);
     update([AppPageIdConstants.vr360]);
   }
 
   void setWavelength(double value) {
+    if (!value.isFinite) return;
     wavelength.value = value.clamp(0.5, 2.0);
     update([AppPageIdConstants.vr360]);
   }
 
   void setEyeSeparation(double value) {
+    if (!value.isFinite) return;
     eyeSeparation.value = value.clamp(0.04, 0.08);
     update([AppPageIdConstants.vr360]);
   }
 
   void setGyroSensitivity(double value) {
-    gyroSensitivity.value = value.clamp(0.01, 0.1);
-    headTracker.sensitivity = value;
+    if (!value.isFinite) return;
+    final clamped = value.clamp(0.01, 0.1);
+    gyroSensitivity.value = clamped;
+    try {
+      headTracker.sensitivity = clamped;
+    } catch (_) {}
   }
 
   // Touch fallback — delegates to vrlizate HeadTracker
   void onPanUpdate(double dx, double dy) {
-    if (useGyroscope.value) return;
+    if (useGyroscope.value || !dx.isFinite || !dy.isFinite) return;
     headTracker.applyTouchDelta(dx, dy);
   }
 
@@ -186,6 +244,8 @@ class NeomVR360StereoController extends SintController {
   }
 
   void exitFullscreen() {
-    Sint.back();
+    try {
+      Sint.back();
+    } catch (_) {}
   }
 }

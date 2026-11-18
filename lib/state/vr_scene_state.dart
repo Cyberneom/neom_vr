@@ -31,4 +31,11 @@ class VRSceneState {
     nodeCount.value = engine.scene.visibleNodes.length;
     lightCount.value = engine.scene.lights.length;
   }
+
+  /// Releases reactive observables owned by this wrapper.
+  void dispose() {
+    nodeCount.close();
+    lightCount.close();
+    isLoading.close();
+  }
 }

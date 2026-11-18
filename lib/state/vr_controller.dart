@@ -64,8 +64,11 @@ abstract class VRController extends SintController {
   void _onEngineTick() {
     if (_didClose || engine.frameCount == _lastFrameCount) return;
     _lastFrameCount = engine.frameCount;
-    currentFps.value = engine.fps;
-    onVRUpdate(engine.frameTimeMs / 1000);
+    final fps = engine.fps;
+    currentFps.value = fps.isFinite && fps >= 0 ? fps : 0.0;
+    final frameMs = engine.frameTimeMs;
+    final dt = (frameMs.isFinite && frameMs >= 0) ? frameMs / 1000 : 0.0;
+    onVRUpdate(dt);
   }
 
   void onVRInit();
@@ -99,6 +102,10 @@ abstract class VRController extends SintController {
       }
     }
     isVRRunning.value = false;
+    isVRRunning.close();
+    isStereoMode.close();
+    showDebugOverlay.close();
+    currentFps.close();
     super.onClose();
   }
 }
