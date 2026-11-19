@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:neom_core/domain/use_cases/app_hive_service.dart';
 import 'package:neom_vr/ecosystem/auth/vr_ecosystem_session.dart';
 import 'package:neom_vr/ecosystem/expedition/vr_expedition_store.dart';
