@@ -27,6 +27,8 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
     VrContentPlayback Function()? playbackFactory,
     VrEcosystemSocialSource Function(VrEcosystemIdentity)? socialSourceFactory,
     this.onOpenCinema,
+    this.onOpenBookInVr,
+    this.onOpenPdfReadingRoom,
     VrLocalAvatarStore? avatarStore,
     Future<Set<String>> Function()? avatarRewardLoader,
     this.pageSize = 3,
@@ -54,6 +56,8 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
   final VrEcosystemSession session;
   final VrAvatarRoomPresenter _avatarRoom;
   final Future<void> Function()? onOpenCinema;
+  final Future<void> Function(VrAuthorizedContent content)? onOpenBookInVr;
+  final Future<void> Function()? onOpenPdfReadingRoom;
   final int pageSize;
   final VrContentProvider Function(VrContentSource) _providerFactory;
   final VrContentPlayback Function() _playbackFactory;
@@ -204,6 +208,18 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
       return _room == null ? _cancelled : _render();
     }
 
+    // Open local/public 1D/2D/3D VR PDF Reading Room directly from EMXI without
+    // requiring account login first.
+    if (canonical.id == 'emxi' && actionId == 'enterPdfReadingRoom') {
+      _busy = true;
+      try {
+        await onOpenPdfReadingRoom?.call();
+      } finally {
+        _busy = false;
+      }
+      return _room == null ? _cancelled : _render();
+    }
+
     // Even local paging/actions are gated against the live account. A stale
     // catalogue must never survive a silent profile mutation between frames.
     final identity = session.captureIdentity();
@@ -291,8 +307,8 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
           if (candidate.id == id) item = candidate;
         }
         if (item == null ||
-            item.kind == VrContentKind.book ||
-            _provider == null) {
+            _provider == null ||
+            (item.kind == VrContentKind.book && onOpenBookInVr == null)) {
           throw const VrContentUnavailable(
             'Esta acción no está disponible en VR.',
           );
@@ -305,6 +321,11 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
         );
         if (!_current(generation, identity) || !content.isCurrent) {
           return _cancelled;
+        }
+        if (item.kind == VrContentKind.book) {
+          await onOpenBookInVr!(content);
+          if (!_current(generation, identity)) return _cancelled;
+          return _render();
         }
         final playback = _playback ??= _playbackFactory();
         if (!playback.supports(item)) {
@@ -415,17 +436,30 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
           _message ??
           (_playingTitle == null
               ? room.id == 'emxi'
-                    ? 'El proveedor verificará tu acceso. Lectura VR próximamente.'
+                    ? onOpenBookInVr != null
+                          ? 'El proveedor verificará tu acceso y abrirá el libro en Lectura VR 1D/2D/3D.'
+                          : 'El proveedor verificará tu acceso. Lectura VR próximamente.'
                     : 'El proveedor verificará tu acceso al abrir.'
               : 'Audio iniciado: ${_short(_playingTitle!, 70)}');
       for (final item in _visibleItems) {
+        final canReadBook = onOpenBookInVr != null;
         actions.add(
           VrHomeRoomAction(
             id: 'open:${item.id}',
             label: item.kind == VrContentKind.book
-                ? '${_short(item.title, 65)} · Lectura VR próximamente'
+                ? canReadBook
+                      ? 'Leer en VR: ${_short(item.title, 74)}'
+                      : '${_short(item.title, 65)} · Lectura VR próximamente'
                 : 'Escuchar: ${_short(item.title, 80)}',
-            enabled: item.kind != VrContentKind.book,
+            enabled: item.kind != VrContentKind.book || canReadBook,
+          ),
+        );
+      }
+      if (room.id == 'emxi' && onOpenPdfReadingRoom != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterPdfReadingRoom',
+            label: 'Abrir Sala PDF (1D/2D/3D)',
           ),
         );
       }
@@ -440,6 +474,14 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
         actions.add(const VrHomeRoomAction(id: 'stop', label: 'Detener audio'));
       }
     } else {
+      if (room.id == 'emxi' && onOpenPdfReadingRoom != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterPdfReadingRoom',
+            label: 'Abrir Sala PDF (1D/2D/3D)',
+          ),
+        );
+      }
       actions.add(const VrHomeRoomAction(id: 'browse', label: 'Ver contenido'));
     }
     return _presentation = VrHomeRoomPresentation(
