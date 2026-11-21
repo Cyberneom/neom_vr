@@ -1206,6 +1206,19 @@ class VrEmbeddedSaiaProvider implements VrAssistantProvider {
 
   String get lastEngineUsed => _lastEngineUsed;
 
+  bool get _isDesktopHost =>
+      !kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows);
+
+  /// Prepares the same local engine used by the first conversation turn.
+  Future<String> prepareLocalEngine() async {
+    final desktop = _isDesktopHost;
+    final local = await runtime.resolveLocalEngine(
+      isDesktopFaro: desktop,
+      isActiveVrVisor: !desktop,
+    );
+    return local.label;
+  }
+
   /// Returns an unmodifiable view of the short-term memory turns for [key].
   List<IaChatMessage> conversationHistoryFor(String key) =>
       List.unmodifiable(_conversations[key] ?? const <IaChatMessage>[]);
@@ -1331,9 +1344,7 @@ class VrEmbeddedSaiaProvider implements VrAssistantProvider {
     }
 
     // 3. Tier 1D — Run embedded SAIA directly on this Smartphone (or Desktop standalone)
-    final isDesktopHost =
-        !kIsWeb &&
-        (Platform.isMacOS || Platform.isLinux || Platform.isWindows);
+    final isDesktopHost = _isDesktopHost;
     final localRes = await runtime.inferLocal(
       prompt: fullPrompt,
       maxTokens: 200,

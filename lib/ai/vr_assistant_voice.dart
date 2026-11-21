@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:neom_tts/data/providers/flutter_tts_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:vrlizate_assistant/vrlizate_assistant.dart';
+
+export 'vr_npc_avatar_voice.dart';
 
 export 'package:vrlizate_assistant/vrlizate_assistant.dart'
     show
@@ -19,6 +22,9 @@ void registerNeomVrSpeechDefaults() {
 
 /// Device speech recognizer implementation backed by `speech_to_text`.
 class NeomDeviceSpeechInput implements VrAssistantSpeechInput {
+  NeomDeviceSpeechInput({this.onDevice = false});
+
+  final bool onDevice;
   final stt.SpeechToText _speech = stt.SpeechToText();
   void Function(VrAssistantSpeechFailure)? _onError;
   VoidCallback? _onDone;
@@ -34,8 +40,30 @@ class NeomDeviceSpeechInput implements VrAssistantSpeechInput {
   );
 
   @override
-  Future<List<String>> locales() async =>
-      (await _speech.locales()).map((locale) => locale.localeId).toList();
+  Future<List<String>> locales() async {
+    if (onDevice && defaultTargetPlatform == TargetPlatform.android) {
+      List<String>? installed;
+      try {
+        installed = await const MethodChannel('vrlizate/device_capabilities')
+            .invokeListMethod<String>('installedSpeechLocales');
+      } on MissingPluginException {
+        // Older hosts can still use their device's current Spanish locale.
+      } on PlatformException {
+        // Some recognizers decline capability queries.
+      }
+      final current = PlatformDispatcher.instance.locale;
+      if (installed != null) {
+        final spanish = installed.where((s) => s.split(RegExp('[-_]')).first.toLowerCase() == 'es').toList();
+        if (spanish.isNotEmpty) {
+          final preferred = spanish.where((s) => s.replaceAll('_','-').toLowerCase() == current.toLanguageTag().toLowerCase());
+          return preferred.isEmpty ? spanish : [preferred.first];
+        }
+      } else if (current.languageCode.toLowerCase() == 'es') {
+        return [current.toLanguageTag()];
+      }
+    }
+    return (await _speech.locales()).map((locale) => locale.localeId).toList();
+  }
 
   @override
   Future<void> start({
@@ -47,11 +75,13 @@ class NeomDeviceSpeechInput implements VrAssistantSpeechInput {
   }) async {
     _onError = onError;
     _onDone = onDone;
+    if (onDevice) debugPrint('[VR-NPC] stt locale=${localeId ?? 'system'} onDevice=true');
     await _speech.listen(
       onResult: (result) =>
           onResult(result.recognizedWords, result.finalResult),
       listenOptions: stt.SpeechListenOptions(
         localeId: localeId,
+        onDevice: onDevice,
         listenFor: timeout,
         pauseFor: const Duration(seconds: 4),
         partialResults: true,
@@ -72,6 +102,9 @@ class NeomDeviceSpeechInput implements VrAssistantSpeechInput {
 /// Text-to-speech output implementation backed by Open Neom `neom_tts`.
 class NeomTtsSpeechOutput implements VrAssistantSpeechOutput {
   final FlutterTtsProvider _provider = FlutterTtsProvider();
+
+  /// Initializes the device synthesizer without opening the microphone or playing audio.
+  Future<void> prepare() => _provider.initialize();
 
   @override
   Future<bool> speak(String text) =>

@@ -227,7 +227,7 @@ class VrAvatarRoomPresenter {
                     'Accesorio: ${VrAvatarCosmeticCatalog.byId(appearance.cosmeticId)?.title ?? 'ninguno'}'
               : _page != 1
               ? 'Tu modelo 3D cambia en la plataforma de esta sala. Guarda para conservarlo en este dispositivo.'
-              : 'Preferencias preparadas para multijugador; la voz y los avatares remotos aún no están conectados.'),
+              : 'Elige la voz sintética del avatar y tus preferencias de convivencia.'),
       actions: [
         if (_page == 0) ...[
           VrHomeRoomAction(
@@ -282,6 +282,10 @@ class VrAvatarRoomPresenter {
           ),
           const VrHomeRoomAction(id: 'appearance', label: '← Apariencia'),
         ] else ...[
+          VrHomeRoomAction(
+            id: 'voiceGender',
+            label: 'Voz del avatar · ${const VrAvatarLabels().voiceGenderName(appearance.voiceGender)}',
+          ),
           VrHomeRoomAction(
             id: 'voice',
             label:
@@ -444,6 +448,11 @@ class VrAvatarRoomPresenter {
             final next = (appearance.featureScale * 100).round() + 10;
             appearance = appearance.copyWith(
               featureScale: next > 140 ? .6 : next / 100,
+            );
+          case 'voiceGender':
+            final choices = VrAvatarVoiceGender.values;
+            appearance = appearance.copyWith(
+              voiceGender: choices[(appearance.voiceGender.index + 1) % choices.length],
             );
           case 'voice':
             preferences = preferences.copyWith(
