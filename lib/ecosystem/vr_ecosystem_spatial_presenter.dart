@@ -29,6 +29,9 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
     this.onOpenCinema,
     this.onOpenBookInVr,
     this.onOpenPdfReadingRoom,
+    this.onOpenMusicStage,
+    this.onOpenMeditationSpace,
+    this.onOpenCreatorStudio,
     VrLocalAvatarStore? avatarStore,
     Future<Set<String>> Function()? avatarRewardLoader,
     this.pageSize = 3,
@@ -58,6 +61,9 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
   final Future<void> Function()? onOpenCinema;
   final Future<void> Function(VrAuthorizedContent content)? onOpenBookInVr;
   final Future<void> Function()? onOpenPdfReadingRoom;
+  final Future<void> Function()? onOpenMusicStage;
+  final Future<void> Function()? onOpenMeditationSpace;
+  final Future<void> Function()? onOpenCreatorStudio;
   final int pageSize;
   final VrContentProvider Function(VrContentSource) _providerFactory;
   final VrContentPlayback Function() _playbackFactory;
@@ -136,7 +142,20 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
   String get _previewStatus {
     if (_room?.id == 'cinema') return 'Entra al auditorio con A';
     if (_room?.id == 'avatar') return 'Diseña tu avatar con el mando';
-    if (_room?.id == 'creator') return 'Publicación .vrlz en preparación';
+    if (_room?.id == 'emxi' && onOpenPdfReadingRoom != null) {
+      return 'Lectura PDF VR lista · Libros EMXI con cuenta';
+    }
+    if (_room?.id == 'gigmeout' && onOpenMusicStage != null) {
+      return 'Escenario Musical VR listo · Catálogo con cuenta';
+    }
+    if (_room?.id == 'cyberneom' && onOpenMeditationSpace != null) {
+      return 'Santuario eMudras y calma listo · Sesiones con cuenta';
+    }
+    if (_room?.id == 'creator') {
+      return onOpenCreatorStudio != null
+          ? 'Importa paquetes .vrlz locales ahora'
+          : 'Publicación .vrlz en preparación';
+    }
     if (_socialLoaded && _posts.isEmpty) return 'Sin publicaciones disponibles';
     if (!session.backendReady) return 'Exploración · cuentas no configuradas';
     return session.isAuthenticated
@@ -214,6 +233,39 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
       _busy = true;
       try {
         await onOpenPdfReadingRoom?.call();
+      } finally {
+        _busy = false;
+      }
+      return _room == null ? _cancelled : _render();
+    }
+
+    // Immediate interactive VR stage for Gigmeout without requiring login.
+    if (canonical.id == 'gigmeout' && actionId == 'enterMusicStage') {
+      _busy = true;
+      try {
+        await onOpenMusicStage?.call();
+      } finally {
+        _busy = false;
+      }
+      return _room == null ? _cancelled : _render();
+    }
+
+    // Immediate interactive meditation/eMudra sanctuary for Cyberneom.
+    if (canonical.id == 'cyberneom' && actionId == 'enterMeditationSpace') {
+      _busy = true;
+      try {
+        await onOpenMeditationSpace?.call();
+      } finally {
+        _busy = false;
+      }
+      return _room == null ? _cancelled : _render();
+    }
+
+    // Immediate .vrlz package import/test studio for Estudio Creador.
+    if (canonical.id == 'creator' && actionId == 'enterCreatorStudio') {
+      _busy = true;
+      try {
+        await onOpenCreatorStudio?.call();
       } finally {
         _busy = false;
       }
@@ -463,6 +515,22 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
           ),
         );
       }
+      if (room.id == 'gigmeout' && onOpenMusicStage != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterMusicStage',
+            label: 'Entrar al Escenario Musical VR',
+          ),
+        );
+      }
+      if (room.id == 'cyberneom' && onOpenMeditationSpace != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterMeditationSpace',
+            label: 'Entrar al Santuario eMudras VR',
+          ),
+        );
+      }
       if (_page > 0) {
         actions.add(const VrHomeRoomAction(id: 'previous', label: 'Anterior'));
       }
@@ -479,6 +547,30 @@ class VrEcosystemSpatialPresenter extends ChangeNotifier
           const VrHomeRoomAction(
             id: 'enterPdfReadingRoom',
             label: 'Abrir Sala PDF (1D/2D/3D)',
+          ),
+        );
+      }
+      if (room.id == 'gigmeout' && onOpenMusicStage != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterMusicStage',
+            label: 'Entrar al Escenario Musical VR',
+          ),
+        );
+      }
+      if (room.id == 'cyberneom' && onOpenMeditationSpace != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterMeditationSpace',
+            label: 'Entrar al Santuario eMudras VR',
+          ),
+        );
+      }
+      if (room.id == 'creator' && onOpenCreatorStudio != null) {
+        actions.add(
+          const VrHomeRoomAction(
+            id: 'enterCreatorStudio',
+            label: 'Importar experiencia .vrlz',
           ),
         );
       }

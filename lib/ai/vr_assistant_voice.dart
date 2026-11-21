@@ -4,6 +4,8 @@ import 'package:neom_tts/data/providers/flutter_tts_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 
+import 'vr_npc_avatar_voice.dart';
+
 export 'vr_npc_avatar_voice.dart';
 
 export 'package:vrlizate_assistant/vrlizate_assistant.dart'
@@ -107,8 +109,10 @@ class NeomTtsSpeechOutput implements VrAssistantSpeechOutput {
   Future<void> prepare() => _provider.initialize();
 
   @override
-  Future<bool> speak(String text) =>
-      _provider.speakWithCompletion(text, language: 'es-MX');
+  Future<bool> speak(String text) => _provider.speakWithCompletion(
+    normalizeVrTtsPronunciation(text),
+    language: 'es-MX',
+  );
 
   @override
   Future<void> stop() => _provider.stop();
