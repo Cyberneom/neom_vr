@@ -97,4 +97,6 @@ dependency_overrides:
     path: ../vrlizate_spatial_audio
   vrlizate_physics:
     path: ../vrlizate_physics
+  vrlizate_mudras:
+    path: ../vrlizate_mudras
   lucide_icons_flutter: ^3.1.19
