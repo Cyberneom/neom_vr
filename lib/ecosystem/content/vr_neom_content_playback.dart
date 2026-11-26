@@ -1,7 +1,7 @@
 import 'package:neom_audio_player/audio_player_invoker.dart';
 import 'package:neom_core/domain/use_cases/audio_player_invoker_service.dart';
 import 'package:sint/sint.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:neom_core/domain/use_cases/app_hive_service.dart';
 
 import 'vr_content_playback.dart';

@@ -1,4 +1,4 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:neom_core/data/implementations/app_hive_controller.dart';
 import 'package:neom_core/domain/use_cases/app_hive_service.dart';
 import 'package:sint/sint.dart';
