@@ -1,6 +1,6 @@
 import 'package:neom_core/app_config.dart';
 import 'package:neom_core/utils/enums/app_in_use.dart';
-import 'neom_hey_compat.dart';
+import 'package:saia_hey/saia_hey.dart';
 import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 
@@ -14,7 +14,7 @@ export 'package:vrlizate_assistant/vrlizate_assistant.dart'
         VrVoiceMotionKind,
         VrVoiceUiCommand;
 
-/// Spatial Action determined by VR / neom_hey Assistant (aliased to SDK [VrVoiceActionType]).
+/// Spatial Action determined by VR / saia_hey Assistant (aliased to SDK [VrVoiceActionType]).
 typedef ItzliActionType = VrVoiceActionType;
 
 /// Structured response emitted by VR spatial assistant.
@@ -151,20 +151,20 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
       ? AppInUse.v
       : AppConfig.instance.appInUse;
 
-  /// Active voice profile discovered by `neom_hey` for [app].
-  static NeomHeyAppProfile activeProfile([AppInUse? app]) =>
-      NeomHeyProtocol.profileFor(app ?? activeVrAppInUse);
+  /// Active voice profile discovered by `saia_hey` for [app].
+  static SaiaHeyProfile activeProfile([AppInUse? app]) =>
+      SaiaHeyProtocol.profileFor((app ?? activeVrAppInUse).name);
 
-  /// Structured list of supported voice instructions from `neom_hey` for [app].
-  static List<NeomHeyInstructionSpec> supportedCapabilities([AppInUse? app]) =>
-      NeomHeyProtocol.capabilitiesFor(app ?? activeVrAppInUse);
+  /// Structured list of supported voice instructions from `saia_hey` for [app].
+  static List<SaiaHeyCapability> supportedCapabilities([AppInUse? app]) =>
+      SaiaHeyProtocol.capabilitiesFor((app ?? activeVrAppInUse).name);
 
-  /// Parses wake-word calls via `NeomHeyProtocol` according to [AppInUse]
+  /// Parses wake-word calls via `SaiaHeyProtocol` according to [AppInUse]
   /// (`AppInUse.v`: `"Hey VR"`, `"Hey ve erre"`, `"Hey viar"`, `"VR"`).
   static VrWakeWordMatch parseWakeWord(String rawSpeech, {AppInUse? app}) {
-    final heyMatch = NeomHeyProtocol.detectWakeCall(
+    final heyMatch = SaiaHeyProtocol.detectWakeCall(
       rawSpeech,
-      app: app ?? activeVrAppInUse,
+      appKey: (app ?? activeVrAppInUse).name,
     );
     return VrWakeWordMatch(
       addressed: heyMatch.addressed,
@@ -1018,15 +1018,15 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
   ];
 
   /// Interprets user natural language speech and resolves spatial guidance
-  /// using the canonical `neom_hey` protocol for [app] (`AppInUse.v` by default).
+  /// using the canonical `saia_hey` protocol for [app] (`AppInUse.v` by default).
   @override
   ItzliVrGuidance interpretRequest(String naturalSpeech, {AppInUse? app}) {
     final resolvedApp = app ?? activeVrAppInUse;
-    final parsed = NeomHeyProtocol.parseInstruction(
+    final parsed = SaiaHeyProtocol.parseInstruction(
       naturalSpeech,
-      app: resolvedApp,
+      appKey: resolvedApp.name,
     );
-    final profile = NeomHeyProtocol.profileFor(resolvedApp);
+    final profile = SaiaHeyProtocol.profileFor(resolvedApp.name);
 
     if (parsed.wake.isWakeOnly) {
       return ItzliVrGuidance(
@@ -1049,12 +1049,12 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
     if (parsed.asksCapabilities) {
       return ItzliVrGuidance(
         actionType: ItzliActionType.conversationalGuidance,
-        speechResponse: NeomHeyProtocol.capabilitiesSummaryEs(resolvedApp),
+        speechResponse: SaiaHeyProtocol.capabilitiesSummaryEs(resolvedApp.name),
       );
     }
 
     // 0b. Immediate Stop / Freeze Locomotion
-    if (parsed.domain == NeomHeyInstructionDomain.locomotionStop) {
+    if (parsed.domain == SaiaHeyInstructionDomain.locomotionStop) {
       return const ItzliVrGuidance(
         actionType: ItzliActionType.moveInSpace,
         speechResponse: 'Movimiento detenido.',
@@ -1158,7 +1158,7 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
         _matchesAny(text, ['abre ', 'abrir ', 'inicia ', 'iniciar '])
         ? _findExperience(text)
         : null;
-    if (parsed.domain == NeomHeyInstructionDomain.spatialPointNavigation &&
+    if (parsed.domain == SaiaHeyInstructionDomain.spatialPointNavigation &&
         explicitOpenCatalogMatch == null) {
       final pointSpeech = parsed.targetX != null && parsed.targetZ != null
           ? 'Yendo al punto (${parsed.targetX!.toStringAsFixed(1)}, ${parsed.targetZ!.toStringAsFixed(1)}).'
@@ -1176,11 +1176,11 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
       );
     }
 
-    // 0e. 3D Turn & Walk Locomotion from NeomHeyProtocol
-    if (parsed.domain == NeomHeyInstructionDomain.locomotionTurn) {
+    // 0e. 3D Turn & Walk Locomotion from SaiaHeyProtocol
+    if (parsed.domain == SaiaHeyInstructionDomain.locomotionTurn) {
       final deg = parsed.angleDegrees ?? 90.0;
       final dur = parsed.durationSeconds ?? 1.05;
-      if (parsed.direction == NeomHeyDirection.around) {
+      if (parsed.direction == SaiaHeyDirection.around) {
         return ItzliVrGuidance(
           actionType: ItzliActionType.moveInSpace,
           speechResponse: 'Dando media vuelta.',
@@ -1189,7 +1189,7 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
           turnDegrees: 180,
         );
       }
-      final isLeft = parsed.direction == NeomHeyDirection.left;
+      final isLeft = parsed.direction == SaiaHeyDirection.left;
       final sideEs = isLeft ? 'la izquierda' : 'la derecha';
       return ItzliVrGuidance(
         actionType: ItzliActionType.moveInSpace,
@@ -1202,25 +1202,25 @@ class ItzliVrAssistant implements VrVoiceIntentRouter {
       );
     }
 
-    if (parsed.domain == NeomHeyInstructionDomain.locomotionWalk) {
+    if (parsed.domain == SaiaHeyInstructionDomain.locomotionWalk) {
       final dur = parsed.durationSeconds ?? 2.2;
       final dist = parsed.distanceMeters;
       return switch (parsed.direction) {
-        NeomHeyDirection.backward => ItzliVrGuidance(
+        SaiaHeyDirection.backward => ItzliVrGuidance(
           actionType: ItzliActionType.moveInSpace,
           speechResponse: 'Retrocediendo con suavidad.',
           motionKind: VrVoiceMotionKind.walkBackward,
           motionDurationSeconds: dur,
           distanceMeters: dist,
         ),
-        NeomHeyDirection.left => ItzliVrGuidance(
+        SaiaHeyDirection.left => ItzliVrGuidance(
           actionType: ItzliActionType.moveInSpace,
           speechResponse: 'Desplazándote a la izquierda.',
           motionKind: VrVoiceMotionKind.strafeLeft,
           motionDurationSeconds: dur,
           distanceMeters: dist,
         ),
-        NeomHeyDirection.right => ItzliVrGuidance(
+        SaiaHeyDirection.right => ItzliVrGuidance(
           actionType: ItzliActionType.moveInSpace,
           speechResponse: 'Desplazándote a la derecha.',
           motionKind: VrVoiceMotionKind.strafeRight,

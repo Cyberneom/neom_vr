@@ -59,8 +59,8 @@ dependency_overrides:
     path: ../../../social/neom_rooms
   neom_ia:
     path: ../../../ai/neom_ia
-  neom_hey:
-    path: ../../../ai/neom_hey
+  saia_hey:
+    path: ../../../ai/saia_hey
   neom_tts:
     path: ../../../ai/neom_tts
   neom_corpus:

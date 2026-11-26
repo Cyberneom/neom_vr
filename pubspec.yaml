@@ -25,6 +25,9 @@ dependencies:
   saia_core: ^1.0.0
   saia_gguf: ^1.0.0
   neom_ollama: ^1.2.0
+  saia_hey:
+    git:
+      url: git@github.com:Open-Neom/saia_hey.git
   neom_tts: ^1.0.0
   neom_ble: ^0.1.0
 

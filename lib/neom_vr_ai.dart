@@ -1,7 +1,7 @@
-/// Open Neom VR AI Assistant integration (Hey VR / neom_hey, SAIA spatial inference, voice).
+/// Open Neom VR AI Assistant integration (Hey VR / saia_hey, SAIA spatial inference, voice).
 library;
 
-export 'ai/neom_hey_compat.dart';
+export 'package:saia_hey/saia_hey.dart';
 export 'package:saia_hey/saia_hey.dart';
 export 'ai/itzli_vr_assistant.dart';
 export 'ai/saia_spatial_inference_bridge.dart';

@@ -45,8 +45,6 @@ dependency_overrides:
     path: ../../ai/saia_provenance
   archive: ^4.7.1
   image: ^4.13.1
-  neom_hey:
-    path: ../../ai/neom_hey
   saia_hey:
     path: ../../ai/saia_hey
   neom_tts:
