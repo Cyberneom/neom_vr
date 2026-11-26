@@ -2,7 +2,7 @@
 
 Módulo de Realidad Virtual para aplicaciones del ecosistema **Open Neom**, con visores panorámicos 360° y puente de sesiones de renderizado entre [`vrlizate`](../vrlizate/README.md) y [`sint`](../../framework/sint/README.md).
 
-> Versión actual: **1.4.0**. Consulta [CHANGELOG.md](CHANGELOG.md) para el historial de cambios.
+> Versión actual: **2.0.0** (`sint: ^2.3.0`). Consulta [CHANGELOG.md](CHANGELOG.md) para el historial de cambios.
 
 ## Características principales
 

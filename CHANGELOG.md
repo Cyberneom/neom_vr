@@ -1,6 +1,7 @@
-### 2.0.0 - SINT 2.0, Tri-Camera Passthrough HUD & Portable `.vrlw` Ecosystem
+### 2.0.0 - SINT 2.3, Local Avatar TTS Voices, Tri-Camera Passthrough HUD & Portable `.vrlw` Ecosystem
 
-- Upgrade `neom_vr` to `2.0.0` powered by `sint: ^2.0.0` (`NeomVrHostBindings`).
+- Upgrade `neom_vr` to `2.0.0` targeting `sint: ^2.3.0` (`NeomVrHostBindings`) and add `vrlizate_mudras` local override.
+- Add deterministic local Spanish avatar TTS voice selection by `speakerKey`, `normalizeVrTtsPronunciation` (`VRlizate` → `Vi Ar Lizate`), and immediate room actions in `VrEcosystemSpatialPresenter` (`Gigmeout`, `Cyberneom`, `Creador`).
 - Optimize `VrPassthroughCameraFeed` for zero-copy GPU `CameraPreview` at `ResolutionPreset.low` without YUV420 `startImageStream` JNI buffer contention, and throttle `VrSpatialTrackingService.updateLiveControllerTelemetry` listener notifications to prevent frame drops or crashes when opening the Breakthrough passthrough curtain on the Visor smartphone.
 - Extract Open Neom Ecosystem (`lib/ecosystem/`), AI Assistant (`lib/ai/`) and BLE Controller (`lib/ble/`) services into `neom_vr` (`neom_vr_ecosystem.dart`, `neom_vr_ai.dart`, `neom_vr_ble.dart`).
 - Add `VrStereoPassthroughCameraFeed` and `VrTriCameraInspectorSheet` for live Tri-Camera + Ultrasonic + 6-Channel Synthetic LiDAR spatial inspection and stereo passthrough preview.
