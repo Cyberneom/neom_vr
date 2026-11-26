@@ -1,6 +1,6 @@
 import 'package:neom_core/app_config.dart';
 import 'package:neom_core/utils/enums/app_in_use.dart';
-import 'package:neom_hey/neom_hey.dart';
+import 'neom_hey_compat.dart';
 import 'package:vrlizate_assistant/vrlizate_assistant.dart';
 import 'package:vrlizate_scene/vrlizate_scene.dart';
 

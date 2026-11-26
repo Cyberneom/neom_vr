@@ -25,7 +25,6 @@ dependencies:
   saia_core: ^1.0.0
   saia_gguf: ^1.0.0
   neom_ollama: ^1.2.0
-  neom_hey: ^1.0.0
   neom_tts: ^1.0.0
   neom_ble: ^0.1.0
 
@@ -34,7 +33,7 @@ dependencies:
   cloud_functions: ">=6.0.0 <8.0.0"
   hive_ce_flutter: ^2.5.0
   shared_preferences: ^2.5.5
-  flutter_secure_storage: ">=9.2.4 <11.0.0"
+  flutter_secure_storage: ">=9.2.4 <12.0.0"
   http: ^1.6.0
   crypto: ^3.0.7
   file_picker: ^13.3.3
